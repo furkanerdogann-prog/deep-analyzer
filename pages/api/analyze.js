@@ -545,13 +545,13 @@ function calc16LayerScores({ rsi, macd, bb, stoch, obv, adx, vwap, ichimoku, pri
   return [...prev15, s16];
 }
 
-// ─── AI Commentary (max 500 tokens, 4 sentences) ──────────────────────────────
+// ─── AI Commentary (JSON format, max 800 tokens) ──────────────────────────────
 async function getAICommentary(summaryData, apiKey) {
   if (!apiKey) return null;
   try {
     const prompt = `MUTLAKA TÜM YANITLARINI TÜRKÇE YAZ. HİÇBİR İNGİLİZCE KELİME KULLANMA. Teknik terimleri bile Türkçe yaz: exchange outflows=borsa çıkışları, distribution=dağıtım, accumulation=birikim, bullish=yükseliş, bearish=düşüş, overbought=aşırı alım, oversold=aşırı satım, support=destek, resistance=direnç, breakout=kırılım, breakdown=çöküş, squeeze=sıkışma, divergence=sapma, absorption=emilim, whale=balina, funding=fonlama, long=uzun, short=kısa, trend=eğilim, momentum=ivme, volume=hacim, volatility=oynaklık, liquidity=likidite, spread=fark, wick=fitil, candle=mum, pattern=formasyon, reversal=dönüş, continuation=devam, rally=ralli, dump=çöküş, pump=pompa, fake breakout=sahte kırılım, stop hunt=stop avı.
 
-Sen profesyonel bir kripto analistsin. Aşağıdaki teknik veriye bakarak 4 kısa cümle yorum yap. Markdown kullanma, düz metin yaz.
+Sen profesyonel bir kripto analistsin. Aşağıdaki teknik veriye bakarak analiz yap.
 
 Coin: ${summaryData.coin} | Fiyat: $${summaryData.price}
 RSI: ${summaryData.rsi} | MACD: ${summaryData.macd_trend} | Bollinger %B: ${summaryData.bb_pct_b}
@@ -562,7 +562,8 @@ Korku/Açgözlülük: ${summaryData.fear_greed}
 Manipülasyon skoru: ${summaryData.manip_score}/100
 Genel skor: ${summaryData.overall_score}/100 | Karar: ${summaryData.verdict}
 
-4 cümle yorum (teknik analiz odaklı, somut seviyeler kullan):`;
+Tüm yanıtlarını TÜRKÇE yaz. Yalnızca geçerli JSON döndür, başka hiçbir şey yazma:
+{"summary":"3 cümle Türkçe genel özet","mmMove":"2 cümle market yapıcı stratejisi","bullScenario":"2 cümle yükseliş senaryosu","bearScenario":"2 cümle düşüş senaryosu","warnings":["uyarı1","uyarı2","uyarı3"],"onchain_summary":"3 cümle zincir üstü özet","orderflow_summary":"3 cümle emir akışı özeti"}`;
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -573,30 +574,68 @@ Genel skor: ${summaryData.overall_score}/100 | Karar: ${summaryData.verdict}
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
+        max_tokens: 800,
         temperature: 0.4,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
     if (!resp.ok) return null;
     const data = await resp.json();
-    return data.content?.[0]?.text?.trim() || null;
+    const text = data.content?.[0]?.text?.trim();
+    if (!text) return null;
+    // Extract and parse JSON from response
+    try {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+    } catch {}
+    // If JSON parse fails, wrap plain text as summary
+    return { summary: text, mmMove: '', bullScenario: '', bearScenario: '', warnings: [], onchain_summary: '', orderflow_summary: '' };
   } catch {
     return null;
   }
 }
 
 function generateFallbackCommentary(summaryData) {
-  const { coin, price, rsi, bull, bear, wyckoff_phase, verdict, macd_trend, ema_trend, fear_greed } = summaryData;
+  const { coin, price, rsi, bull, bear, wyckoff_phase, verdict, macd_trend, ema_trend, vwap_status, fear_greed, adx, manip_score, overall_score } = summaryData;
   const dominant = bull > bear ? 'yükseliş' : 'düşüş';
   const rsiZone = rsi < 35 ? 'aşırı satım' : rsi > 65 ? 'aşırı alım' : 'nötr';
-  const fgNote = fear_greed !== 'Bilinmiyor' ? ` Piyasa duyarlılığı Korku/Açgözlülük endeksi ${fear_greed} seviyesinde.` : '';
-  return (
-    `${coin} $${price} seviyesinde işlem görmekte olup RSI ${rsi} ile ${rsiZone} bölgesinde bulunmaktadır. ` +
-    `Wyckoff analizi ${wyckoff_phase} fazını, EMA yapısı ${ema_trend} yönünü ve MACD ${macd_trend} momentumunu gösteriyor. ` +
-    `Toplam ${bull}/10 boğa ve ${bear}/10 ayı sinyali ile ${dominant} baskısı ön planda.${fgNote} ` +
-    `Genel teknik değerlendirme ${verdict} yönünde olmakla birlikte pozisyon yönetimine dikkat edilmesi önerilir.`
-  );
+  const fgNote = fear_greed !== 'Bilinmiyor' ? ` Piyasa duyarlılığı ${fear_greed} seviyesinde.` : '';
+  const guclu = adx > 25 ? 'güçlü' : 'zayıf';
+
+  const summary =
+    `${coin} $${price} seviyesinde işlem görmekte olup RSI ${rsi} ile ${rsiZone} bölgesindedir.` +
+    ` Wyckoff ${wyckoff_phase} fazını gösterirken EMA yapısı ${ema_trend} yönünü teyit ediyor.` +
+    ` Genel skor ${overall_score}/100 ile ${verdict} kararına işaret etmektedir.${fgNote}`;
+
+  const mmMove =
+    `${dominant === 'yükseliş' ? 'Piyasa yapıcılar birikimi tamamlayarak yükseliş testlerine başlayabilir' : 'Piyasa yapıcılar dağıtım safhasında satış baskısı uyguluyor olabilir'}.` +
+    ` ADX ${adx} seviyesiyle ${guclu} bir eğilim söz konusu; ${dominant === 'yükseliş' ? 'alım' : 'satım'} emirleri ağır basmaktadır.`;
+
+  const bullScenario =
+    `${vwap_status} konumundan güç alan ${coin}, ${bull}/10 boğa sinyali desteğiyle kısa vadeli yukarı atağa geçebilir.` +
+    ` RSI ${rsiZone} bölgesinden dönüş ve MACD çaprazı bu senaryoyu destekler niteliktedir.`;
+
+  const bearScenario =
+    `MACD ${macd_trend} ivmesi ve ${bear}/10 ayı sinyali baskı devam ederse kritik destek seviyeleri test edilebilir.` +
+    ` Manipülasyon skoru ${manip_score}/100 — olağandışı fiyat hareketlerine ve stop avlarına karşı dikkatli olunmalıdır.`;
+
+  const warnings = [
+    `RSI ${rsi} ile ${rsiZone} bölgesinde; ani ${rsi < 50 ? 'yükseliş' : 'düşüş'} tepkilerine karşı hazırlıklı olun.`,
+    `Manipülasyon skoru ${manip_score}/100 — stop avı ve sahte kırılım riskine karşı sıkı zarar-kes seviyeleri kullanın.`,
+    `${wyckoff_phase} fazında piyasa; kaldıraç oranını ve pozisyon büyüklüğünü ${manip_score > 50 ? 'düşük' : 'orta'} tutmanız önerilir.`,
+  ];
+
+  const onchain_summary =
+    `Zincir üstü veriler mevcut API kapsamında sınırlıdır; borsa çıkışları ve büyük cüzdan hareketleri ayrıca izlenmelidir.` +
+    ` Anlık hacim profili ${dominant} baskısının ${dominant === 'yükseliş' ? 'alıcı' : 'satıcı'} tarafında yoğunlaştığına işaret ediyor.` +
+    ` VWAP ${vwap_status} konumu kurumsal ilginin ${dominant === 'yükseliş' ? 'pozitif' : 'negatif'} yönde olduğunu göstermektedir.`;
+
+  const orderflow_summary =
+    `MACD histogramı ${macd_trend} ivmesiyle emir akışının ${dominant === 'yükseliş' ? 'alım' : 'satım'} yönünde şekillendiğini gösteriyor.` +
+    ` Stokastik ve RSI verileri ${rsiZone} bölgesinde ${dominant === 'yükseliş' ? 'alıcı' : 'satıcı'} ağırlığını teyit etmektedir.` +
+    ` Toplam sinyal dağılımı ${bull}/10 boğa ve ${bear}/10 ayı ile ${dominant} eğilimini desteklemektedir.`;
+
+  return { summary, mmMove, bullScenario, bearScenario, warnings, onchain_summary, orderflow_summary };
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -847,7 +886,13 @@ export default async function handler(req, res) {
       trade_plan: tradePlan,
 
       // AI commentary
-      ai_commentary: aiCommentary,
+      ai_commentary: aiCommentary.summary || '',
+      warnings: aiCommentary.warnings || [],
+      ai_bull_scenario: aiCommentary.bullScenario || '',
+      ai_bear_scenario: aiCommentary.bearScenario || '',
+      ai_mm_move: aiCommentary.mmMove || '',
+      ai_onchain_summary: aiCommentary.onchain_summary || '',
+      ai_orderflow_summary: aiCommentary.orderflow_summary || '',
       ai_used: aiUsed,
 
       // Meta
