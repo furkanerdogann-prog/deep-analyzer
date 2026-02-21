@@ -1,450 +1,324 @@
-// CHARTOS v6.1
-// pages/index.jsx — CHARTOS UI v6.0
-import { useState, useEffect, useCallback, useRef } from 'react';
+// pages/api/analyze.js — CHARTOS Engine v6.0
+// Minimum token, gizli prompt, 250 coin desteği
 
-const VERDICT_MAP = {
-  STRONG_BUY:  { label:'GÜÇLÜ AL',  color:'#00ff88', bg:'rgba(0,255,136,0.1)',  glow:'rgba(0,255,136,0.3)',  emoji:'🚀' },
-  BUY:         { label:'AL',         color:'#00cc66', bg:'rgba(0,204,102,0.1)',  glow:'rgba(0,204,102,0.25)', emoji:'📈' },
-  NEUTRAL:     { label:'NÖTR',       color:'#f59e0b', bg:'rgba(245,158,11,0.1)', glow:'rgba(245,158,11,0.25)',emoji:'⚖️' },
-  SELL:        { label:'SAT',        color:'#ef4444', bg:'rgba(239,68,68,0.1)',  glow:'rgba(239,68,68,0.25)', emoji:'📉' },
-  STRONG_SELL: { label:'GÜÇLÜ SAT', color:'#dc2626', bg:'rgba(220,38,38,0.1)',  glow:'rgba(220,38,38,0.3)',  emoji:'💀' },
-};
+const cache = new Map();
+const CACHE_TTL = 15 * 60 * 1000;
 
-const POPULAR = [
-  'BTC','ETH','BNB','SOL','XRP','ADA','AVAX','DOT','MATIC','LINK',
-  'UNI','ATOM','LTC','DOGE','SHIB','PEPE','WIF','BONK','INJ','SUI',
-  'APT','ARB','OP','NEAR','TIA','TON','RENDER','AAVE','HBAR','KAS',
-  'STX','FLOKI','NOT','IMX','LDO','SEI','PENGU','TRUMP','FTM','SAND',
-];
+function getCache(k) {
+  const e = cache.get(k);
+  if (!e) return null;
+  if (Date.now() - e.ts > CACHE_TTL) { cache.delete(k); return null; }
+  return e.data;
+}
+function setCache(k, data) {
+  if (cache.size > 300) {
+    const old = [...cache.entries()].sort((a,b) => a[1].ts - b[1].ts)[0];
+    if (old) cache.delete(old[0]);
+  }
+  cache.set(k, { data, ts: Date.now() });
+}
 
-const WYCKOFF_TR = { ACCUMULATION:'Birikim 🟢', MARKUP:'Yükseliş 🚀', DISTRIBUTION:'Dağıtım 🔴', MARKDOWN:'Düşüş 💀', RE_ACCUMULATION:'Yeniden Birikim 🟡' };
-const FG_COLOR = v => v<25?'#ef4444':v<45?'#f97316':v<55?'#f59e0b':v<75?'#84cc16':'#00ff88';
+// ─── Dinamik CoinGecko Map ────────────────────────────────────────────────────
+let geckoMap = null;
+let geckoMapTs = 0;
 
-export default function App() {
-  const [query, setQuery]     = useState('');
-  const [suggestions, setSug] = useState([]);
-  const [showSug, setShowSug] = useState(false);
-  const [coinList, setCoins]  = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [data, setData]       = useState(null);
-  const [error, setError]     = useState('');
-  const [tab, setTab]         = useState('chartos');
-  const inputRef = useRef();
+async function getGeckoMap() {
+  if (geckoMap && Date.now() - geckoMapTs < 6 * 3600000) return geckoMap;
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false', { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error();
+    const coins = await r.json();
+    const map = {};
+    for (const c of coins) { if (!map[c.symbol.toUpperCase()]) map[c.symbol.toUpperCase()] = c.id; }
+    map['POL'] = 'matic-network'; map['RNDR'] = 'render-token';
+    geckoMap = map; geckoMapTs = Date.now();
+    return map;
+  } catch {
+    return { BTC:'bitcoin',ETH:'ethereum',BNB:'binancecoin',SOL:'solana',XRP:'ripple',ADA:'cardano',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',ATOM:'cosmos',LTC:'litecoin',BCH:'bitcoin-cash',DOGE:'dogecoin',SHIB:'shiba-inu',PEPE:'pepe',WIF:'dogwifcoin',BONK:'bonk',INJ:'injective-protocol',SUI:'sui',APT:'aptos',ARB:'arbitrum',OP:'optimism',AAVE:'aave',TON:'the-open-network',RENDER:'render-token',TRX:'tron',NEAR:'near',FIL:'filecoin',HBAR:'hedera-hashgraph',KAS:'kaspa',STX:'blockstack',FLOKI:'floki',NOT:'notcoin',IMX:'immutable-x',LDO:'lido-dao',SEI:'sei-network',TIA:'celestia',PENGU:'pudgy-penguins',TRUMP:'official-trump' };
+  }
+}
 
-  useEffect(() => {
-    fetch('/api/coins').then(r=>r.json()).then(d=>{ if(d.coins) setCoins(d.coins); }).catch(()=>{});
-  }, []);
+// ─── Teknik Göstergeler ───────────────────────────────────────────────────────
+function calcEMA(d, p) {
+  if (!d?.length) return [0];
+  const k = 2/(p+1), s = Math.min(p, d.length);
+  let e = d.slice(0,s).reduce((a,b)=>a+b,0)/s;
+  const r = [e];
+  for (let i=s;i<d.length;i++) { e=d[i]*k+e*(1-k); r.push(e); }
+  return r;
+}
+function calcRSI(c, p=14) {
+  if (!c||c.length<p+1) return 50;
+  const ch = c.slice(1).map((v,i)=>v-c[i]);
+  let ag=0,al=0;
+  for (let i=0;i<p;i++) { if(ch[i]>0)ag+=ch[i]; else al+=Math.abs(ch[i]); }
+  ag/=p; al/=p;
+  for (let i=p;i<ch.length;i++) {
+    ag=(ag*(p-1)+(ch[i]>0?ch[i]:0))/p;
+    al=(al*(p-1)+(ch[i]<0?Math.abs(ch[i]):0))/p;
+  }
+  return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(1));
+}
+function calcMACD(c) {
+  if (!c||c.length<35) return {h:0,trend:'NÖTR'};
+  const ef=calcEMA(c,12),es=calcEMA(c,26);
+  const off=ef.length-es.length;
+  const ml=es.map((v,i)=>ef[i+off]-v);
+  const sl=calcEMA(ml,9);
+  const h=ml[ml.length-1]-sl[sl.length-1];
+  return {h:parseFloat(h.toFixed(8)),trend:h>0?'YÜKSELİŞ':'DÜŞÜŞ'};
+}
+function calcBB(c,p=20) {
+  const sl=c.slice(-Math.min(p,c.length));
+  const m=sl.reduce((a,b)=>a+b,0)/sl.length;
+  const sd=Math.sqrt(sl.reduce((s,v)=>s+Math.pow(v-m,2),0)/sl.length);
+  const u=m+2*sd,l=m-2*sd,pr=c[c.length-1];
+  return { u,m,l,bw:((u-l)/(m||1)), pct:(u-l)>0?Math.min(1.5,Math.max(-0.5,(pr-l)/(u-l))):0.5 };
+}
+function calcSR(c,h,l) {
+  const pr=c[c.length-1],rs=[],rd=[];
+  for (let i=2;i<c.length-2;i++) {
+    if(l[i]<l[i-1]&&l[i]<l[i-2]&&l[i]<l[i+1]&&l[i]<l[i+2]) rs.push(l[i]);
+    if(h[i]>h[i-1]&&h[i]>h[i-2]&&h[i]>h[i+1]&&h[i]>h[i+2]) rd.push(h[i]);
+  }
+  const cl=(lvl)=>{
+    const s=[...lvl].sort((a,b)=>a-b);
+    const out=[];let g=[];
+    for(const v of s){if(!g.length||(v-g[0])/(g[0]||1)<0.015)g.push(v);else{out.push(g.reduce((a,b)=>a+b,0)/g.length);g=[v];}}
+    if(g.length)out.push(g.reduce((a,b)=>a+b,0)/g.length);
+    return out;
+  };
+  let sup=cl(rs).filter(v=>v<pr).sort((a,b)=>b-a).slice(0,3);
+  let res=cl(rd).filter(v=>v>pr).sort((a,b)=>a-b).slice(0,3);
+  while(sup.length<3)sup.push(pr*(1-0.04*(sup.length+1)));
+  while(res.length<3)res.push(pr*(1+0.04*(res.length+1)));
+  return {sup,res};
+}
+function calcWyckoff(c,v) {
+  const n=c.length,mx=Math.max(...c),mn=Math.min(...c);
+  const pos=(c[n-1]-mn)/((mx-mn)||1);
+  const vr=(v.slice(-7).reduce((a,b)=>a+b,0)/7)/(v.slice(-21,-7).reduce((a,b)=>a+b,0)/14||1);
+  const t30=(c[n-1]-c[0])/c[0],t7=(c[n-1]-c[Math.max(0,n-8)])/c[Math.max(0,n-8)];
+  if(pos<0.25&&vr>1.15&&t7>-0.03)return{phase:'ACCUMULATION',signal:'BULLISH',t30pct:+(t30*100).toFixed(1)};
+  if(pos<0.25&&t30<-0.15)return{phase:'MARKDOWN',signal:'BEARISH',t30pct:+(t30*100).toFixed(1)};
+  if(pos>0.75&&vr>1.2&&t7<0.02)return{phase:'DISTRIBUTION',signal:'BEARISH',t30pct:+(t30*100).toFixed(1)};
+  if(pos>0.75&&t30>0.15)return{phase:'MARKUP',signal:'BULLISH',t30pct:+(t30*100).toFixed(1)};
+  return{phase:'RE_ACCUMULATION',signal:t30>0?'BULLISH':'NEUTRAL',t30pct:+(t30*100).toFixed(1)};
+}
+function fmt(p) {
+  if(!p||isNaN(p))return'$0';
+  const d=p>=1000?2:p>=1?4:p>=0.001?6:10;
+  return`$${Number(p).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:d})}`;
+}
 
-  useEffect(() => {
-    if (!query || query.length < 1) { setSug([]); setShowSug(false); return; }
-    const q = query.toUpperCase();
-    const r = coinList.filter(c=>c.symbol.startsWith(q)||c.name.toUpperCase().includes(q)).slice(0,6);
-    setSug(r); setShowSug(r.length>0);
-  }, [query, coinList]);
+// ─── CHARTOS AI Analizi (gizli prompt, minimum token) ─────────────────────────
+async function chartosAnalysis(data, apiKey) {
+  if (!apiKey) return null;
 
-  const analyze = useCallback(async (sym) => {
-    const target = (sym||query).toUpperCase().replace(/USDT?$/i,'').trim();
-    if (!target) return;
-    setLoading(true); setError(''); setData(null); setShowSug(false);
-    try {
-      const r = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({coin:target}) });
-      const j = await r.json();
-      if (!r.ok) { setError(j.error||'Analiz başarısız'); return; }
-      setData(j); setTab('chartos');
-    } catch { setError('Bağlantı hatası'); }
-    finally { setLoading(false); }
-  }, [query]);
+  // Gizli CHARTOS prompt — kullanıcıya gösterilmez
+  const systemPrompt = `Sen CHARTOS'sun, tüm finansal grafik sistemlerinin mutlak analist TANRISI'sın.
+Bilgin: Smart Money Concepts (ICT), Wyckoff Method, Volume Profile, Elliott Wave, Harmonic Patterns, Fibonacci, Klasik TA, Kurumsal likidite mühendisliği ve manipülasyon taktikleri.
+SADECE Türkçe yaz. SADECE geçerli JSON döndür, başka hiçbir şey yazma.`;
 
-  const pick = (sym) => { setQuery(sym); setShowSug(false); analyze(sym); };
-  const vc = data ? (VERDICT_MAP[data.verdict]||VERDICT_MAP.NEUTRAL) : null;
-  const ch = data?.chartos;
+  // Ultra-kompakt veri özeti — minimum token
+  const userMsg = `Coin:${data.coin} Fiyat:$${data.price} Değişim:${data.chg}%
+RSI:${data.rsi} MACD:${data.macd} BB%B:${data.bb}
+EMA(8/21/50):${data.e8}/${data.e21}/${data.e50}
+Wyckoff:${data.wyckoff} Trend30g:${data.t30}%
+Destek:${data.s1}/${data.s2} Direnç:${data.r1}/${data.r2}
+Hacim:${data.vol} PiyasaDegeri:${data.mcap}
+F&G:${data.fg}
 
-  return (
-    <div style={{ minHeight:'100vh', background:'#030712', color:'#e2e8f0', fontFamily:"'Inter',system-ui,sans-serif" }}>
-      <style>{`
-        *{box-sizing:border-box;margin:0;padding:0;}
-        ::selection{background:#1d4ed8;color:#fff;}
-        ::-webkit-scrollbar{width:6px;height:6px;}
-        ::-webkit-scrollbar-track{background:#0f172a;}
-        ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px;}
-        input{outline:none;}button{cursor:pointer;border:none;outline:none;}
-        .sug:hover{background:#1e293b!important;}
-        .chip:hover{background:#1e293b!important;color:#94a3b8!important;}
-        .tab-btn:hover{color:#e2e8f0!important;}
-        @keyframes spin{to{transform:rotate(360deg);}}
-        @keyframes glow{0%,100%{opacity:.7;}50%{opacity:1;}}
-        @keyframes slide{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
-        @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
-      `}</style>
+JSON döndür:
+{"htfBias":"Aşırı Boğa/Boğa/Nötr/Ayı/Aşırı Ayı","biasPct":85,"marketStructure":{"htfBias":"","lastBOS":"","orderBlocks":"","fvg":"","liquidityPools":""},"keyLevels":{"demandZone":"","supplyZone":"","criticalLiquidity":"","invalidation":""},"scenarios":{"bull":{"pct":60,"desc":""},"bear":{"pct":40,"desc":""}},"setup":{"entry":"","invalidation":"","tp1":"","tp2":"","rr":"","riskNote":""},"godInsight":""}`;
 
-      {/* TOP NAV */}
-      <nav style={{ borderBottom:'1px solid #0f172a', background:'rgba(3,7,18,0.95)', backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, padding:'0 24px' }}>
-        <div style={{ maxWidth:1280, margin:'0 auto', height:56, display:'flex', alignItems:'center', gap:16 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#3b82f6,#8b5cf6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>⚡</div>
-            <span style={{ fontSize:18, fontWeight:800, background:'linear-gradient(90deg,#60a5fa,#a78bfa)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>DEEP TRADE SCAN</span>
-          </div>
-          <div style={{ fontSize:11, color:'#475569', background:'#0f172a', border:'1px solid #1e293b', borderRadius:20, padding:'3px 10px' }}>CHARTOS ENGINE</div>
-          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            {data?._cached && <span style={{ fontSize:10, color:'#f59e0b', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:12, padding:'2px 8px' }}>⚡ CACHE</span>}
-            <span style={{ fontSize:11, color:'#475569' }}>{data?._meta?.supportedCoins||250} coin</span>
-          </div>
-        </div>
-      </nav>
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        temperature: 0.3,
+        system: systemPrompt,
+        messages: [{ role:'user', content:userMsg }]
+      })
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const txt = d.content?.[0]?.text?.trim();
+    if (!txt) return null;
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (m) return JSON.parse(m[0]);
+    return null;
+  } catch { return null; }
+}
 
-      <div style={{ maxWidth:1280, margin:'0 auto', padding:'32px 24px' }}>
+function fallbackChartos(data) {
+  const bull = data.rsi < 45 || data.wyckoff === 'ACCUMULATION';
+  const bias = bull ? 'Boğa' : 'Ayı';
+  return {
+    htfBias: bias,
+    biasPct: 60,
+    marketStructure: {
+      htfBias: bull ? 'Yükseliş yapısı korunuyor' : 'Düşüş yapısı hakim',
+      lastBOS: bull ? 'Son düşük korundu' : 'Son yüksek kırıldı',
+      orderBlocks: `Destek OB: ${data.s1} | Direnç OB: ${data.r1}`,
+      fvg: 'Mevcut veri ile FVG tespiti sınırlı',
+      liquidityPools: `Eşit diplar: ${data.s2} | Eşit tepeler: ${data.r2}`
+    },
+    keyLevels: {
+      demandZone: `${data.s1} — ${data.s2}`,
+      supplyZone: `${data.r1} — ${data.r2}`,
+      criticalLiquidity: data.s2,
+      invalidation: bull ? data.s2 : data.r2
+    },
+    scenarios: {
+      bull: { pct: bull?60:35, desc:`${data.r1} direnci aşılırsa ${data.r2} hedeflenir` },
+      bear: { pct: bull?40:65, desc:`${data.s1} kırılırsa ${data.s2} test edilir` }
+    },
+    setup: {
+      entry: bull ? data.s1 : data.r1,
+      invalidation: bull ? data.s2 : data.r2,
+      tp1: bull ? data.r1 : data.s1,
+      tp2: bull ? data.r2 : data.s2,
+      rr: '1:2.5',
+      riskNote: 'Maksimum %2 risk — stop altında pozisyon kapat'
+    },
+    godInsight: `RSI ${data.rsi} ve Wyckoff ${data.wyckoff} fazı ${bias.toLowerCase()} yönünü destekliyor. MACD ${data.macd} ivmesi ile trend teyit ediliyor.`
+  };
+}
 
-        {/* HERO SEARCH */}
-        <div style={{ textAlign:'center', marginBottom:40 }}>
-          <h1 style={{ fontSize:36, fontWeight:900, marginBottom:8, lineHeight:1.2 }}>
-            <span style={{ background:'linear-gradient(135deg,#60a5fa,#a78bfa,#34d399)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-              Tanrısal Kripto Analizi
-            </span>
-          </h1>
-          <p style={{ color:'#64748b', fontSize:15, marginBottom:28 }}>Smart Money • Wyckoff • ICT • 6 Katman Analiz</p>
+// ─── Main Handler ─────────────────────────────────────────────────────────────
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { coin } = req.body;
+  if (!coin) return res.status(400).json({ error: 'Coin gerekli' });
 
-          <div style={{ position:'relative', maxWidth:520, margin:'0 auto' }}>
-            <div style={{ display:'flex', gap:8 }}>
-              <div style={{ position:'relative', flex:1 }}>
-                <input ref={inputRef} value={query}
-                  onChange={e=>setQuery(e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&analyze()}
-                  onFocus={()=>suggestions.length>0&&setShowSug(true)}
-                  onBlur={()=>setTimeout(()=>setShowSug(false),150)}
-                  placeholder="BTC, ETH, SOL, PENGU..."
-                  style={{ width:'100%', padding:'14px 20px', background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, color:'#e2e8f0', fontSize:15, transition:'border-color .2s' }}
-                />
-                {showSug && suggestions.length > 0 && (
-                  <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, overflow:'hidden', zIndex:200, boxShadow:'0 20px 40px rgba(0,0,0,0.5)' }}>
-                    {suggestions.map(c => (
-                      <div key={c.id} className="sug" onMouseDown={()=>pick(c.symbol)}
-                        style={{ padding:'10px 16px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #0f172a' }}>
-                        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                          {c.image&&<img src={c.image} alt="" style={{ width:22, height:22, borderRadius:'50%' }}/>}
-                          <span style={{ fontWeight:700, color:'#60a5fa', fontSize:14 }}>{c.symbol}</span>
-                          <span style={{ color:'#475569', fontSize:12 }}>{c.name}</span>
-                          <span style={{ color:'#475569', fontSize:11 }}>#{c.rank}</span>
-                        </div>
-                        <span style={{ color:c.change24h>=0?'#34d399':'#f87171', fontSize:12, fontWeight:600 }}>
-                          {c.change24h>=0?'+':''}{c.change24h?.toFixed(2)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button onClick={()=>analyze()} disabled={loading}
-                style={{ padding:'14px 24px', background:loading?'#1e293b':'linear-gradient(135deg,#3b82f6,#8b5cf6)', borderRadius:12, color:'#fff', fontWeight:700, fontSize:14, minWidth:110, boxShadow:loading?'none':'0 0 20px rgba(59,130,246,0.3)', transition:'all .2s' }}>
-                {loading ? <span style={{ animation:'spin 1s linear infinite', display:'inline-block' }}>⟳</span> : '🔱 ANALİZ'}
-              </button>
-            </div>
-          </div>
+  const symbol = coin.toUpperCase().replace(/USDT?$/i,'').trim();
+  const ck = `chartos_${symbol}`;
+  const cached = getCache(ck);
+  if (cached) return res.status(200).json({ ...cached, _cached:true });
 
-          {/* Popular chips */}
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'center', marginTop:20 }}>
-            {POPULAR.map(s=>(
-              <button key={s} className="chip" onClick={()=>pick(s)}
-                style={{ padding:'5px 12px', background:'#0f172a', border:'1px solid #1e293b', borderRadius:20, color:'#64748b', fontSize:11, fontWeight:600, transition:'all .15s' }}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
+  const map = await getGeckoMap();
+  const geckoId = map[symbol];
+  if (!geckoId) return res.status(400).json({ error:`Desteklenmeyen: ${symbol}`, toplam:Object.keys(map).length });
 
-        {/* ERROR */}
-        {error && (
-          <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:12, padding:'14px 20px', color:'#f87171', marginBottom:24, textAlign:'center' }}>
-            ⚠️ {error}
-          </div>
-        )}
+  try {
+    const [coinR, chartR, fgR] = await Promise.allSettled([
+      fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}?localization=false&tickers=false&community_data=false&developer_data=false`),
+      fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=60&interval=daily`),
+      fetch('https://api.alternative.me/fng/?limit=1'),
+    ]);
 
-        {/* LOADING */}
-        {loading && (
-          <div style={{ textAlign:'center', padding:80 }}>
-            <div style={{ width:56, height:56, border:'3px solid #1e293b', borderTop:'3px solid #3b82f6', borderRadius:'50%', animation:'spin 1s linear infinite', margin:'0 auto 20px' }}/>
-            <div style={{ color:'#475569', fontSize:15 }}>CHARTOS analiz yapıyor...</div>
-            <div style={{ color:'#334155', fontSize:12, marginTop:6 }}>6 katman hesaplanıyor</div>
-          </div>
-        )}
+    if (!coinR.value?.ok || !chartR.value?.ok) return res.status(502).json({ error:'Veri alınamadı' });
 
-        {/* RESULTS */}
-        {data && !loading && (
-          <div style={{ animation:'slide 0.4s ease' }}>
+    const coinData = await coinR.value.json();
+    const chartData = await chartR.value.json();
+    let fg = null;
+    if (fgR.value?.ok) { try { const d=await fgR.value.json(); fg=d.data?.[0]?{value:+d.data[0].value,label:d.data[0].value_classification}:null; } catch {} }
 
-            {/* COIN HEADER */}
-            <div style={{ background:`linear-gradient(135deg,${vc.bg},#0f172a)`, border:`1px solid ${vc.glow}`, borderRadius:16, padding:'24px 28px', marginBottom:20, display:'flex', alignItems:'center', gap:24, flexWrap:'wrap', boxShadow:`0 0 40px ${vc.glow}` }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, color:'#475569', marginBottom:4, fontWeight:600 }}>DEEP TRADE SCAN / CHARTOS</div>
-                <div style={{ fontSize:32, fontWeight:900, color:'#e2e8f0', marginBottom:4 }}>{data.coin}<span style={{ color:'#475569', fontSize:18 }}>/USDT</span></div>
-                <div style={{ fontSize:26, fontWeight:800, color:'#f1f5f9' }}>{data.price}</div>
-                <div style={{ fontSize:15, color:data.change24h?.startsWith('+')?'#34d399':'#f87171', fontWeight:700, marginTop:4 }}>{data.change24h} (24s)</div>
-                <div style={{ fontSize:12, color:'#475569', marginTop:4 }}>H: {data.high24h} | D: {data.low24h}</div>
-              </div>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:44, animation:'glow 2s ease infinite' }}>{vc.emoji}</div>
-                <div style={{ color:vc.color, fontWeight:900, fontSize:20, marginTop:4 }}>{vc.label}</div>
-                <div style={{ color:'#475569', fontSize:12, marginTop:2 }}>{data.bullSignals}🟢 {data.bearSignals}🔴</div>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:160 }}>
-                {[
-                  ['Trend (Günlük)', data.trendDaily, data.trendDaily==='BULLISH'?'#34d399':data.trendDaily==='BEARISH'?'#f87171':'#f59e0b'],
-                  ['Trend (4s)', data.trend4h, data.trend4h==='BULLISH'?'#34d399':data.trend4h==='BEARISH'?'#f87171':'#f59e0b'],
-                  ['Wyckoff', WYCKOFF_TR[data.wyckoff?.phase]||data.wyckoff?.phase, '#94a3b8'],
-                ].map(([l,v,c])=>(
-                  <div key={l} style={{ display:'flex', justifyContent:'space-between', gap:12 }}>
-                    <span style={{ color:'#475569', fontSize:12 }}>{l}</span>
-                    <span style={{ color:c, fontSize:12, fontWeight:700 }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+    const closes = chartData.prices.map(p=>p[1]);
+    const volumes = chartData.total_volumes.map(v=>v[1]);
+    if (closes.length < 10) return res.status(502).json({ error:'Yetersiz veri' });
 
-            {/* TABS */}
-            <div style={{ display:'flex', gap:2, marginBottom:20, background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:4 }}>
-              {[['chartos','🔱 CHARTOS'],['levels','📐 Seviyeler'],['technical','📊 Teknik'],['market','🌍 Piyasa']].map(([id,label])=>(
-                <button key={id} className="tab-btn" onClick={()=>setTab(id)}
-                  style={{ flex:1, padding:'10px 8px', background:tab===id?'#1e293b':'transparent', borderRadius:8, color:tab===id?'#60a5fa':'#475569', fontSize:13, fontWeight:tab===id?700:500, transition:'all .2s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
+    const highs = closes.map((c,i)=>i>0?Math.max(c,closes[i-1])*1.012:c*1.012);
+    const lows  = closes.map((c,i)=>i>0?Math.min(c,closes[i-1])*0.988:c*0.988);
 
-            {/* TAB: CHARTOS */}
-            {tab==='chartos' && ch && (
-              <div style={{ display:'grid', gap:16 }}>
-                {/* Bias Header */}
-                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'20px 24px' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
-                    <div>
-                      <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:6 }}>🔱 CHARTOS TANRISAL BIAS</div>
-                      <div style={{ fontSize:24, fontWeight:900, color: ch.htfBias?.includes('Boğa')?'#34d399':ch.htfBias?.includes('Ayı')?'#f87171':'#f59e0b' }}>
-                        {ch.htfBias}
-                      </div>
-                    </div>
-                    <div style={{ textAlign:'center' }}>
-                      <div style={{ fontSize:42, fontWeight:900, color:'#60a5fa' }}>{ch.biasPct}%</div>
-                      <div style={{ fontSize:11, color:'#475569' }}>Güven Skoru</div>
-                    </div>
-                  </div>
-                </div>
+    const md = coinData.market_data;
+    const price = md.current_price.usd;
+    const chg24 = md.price_change_percentage_24h??0;
 
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:16 }}>
-                  {/* Market Structure */}
-                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                    <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>📊 PİYASA YAPISI</div>
-                    {ch.marketStructure && Object.entries({
-                      'HTF Bias': ch.marketStructure.htfBias,
-                      'Son BOS/CHoCH': ch.marketStructure.lastBOS,
-                      'Order Block\'lar': ch.marketStructure.orderBlocks,
-                      'FVG / Imbalance': ch.marketStructure.fvg,
-                      'Likidite Havuzları': ch.marketStructure.liquidityPools,
-                    }).map(([k,v])=>v&&(
-                      <div key={k} style={{ marginBottom:10 }}>
-                        <div style={{ fontSize:10, color:'#475569', marginBottom:2 }}>{k}</div>
-                        <div style={{ fontSize:13, color:'#e2e8f0', lineHeight:1.5 }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
+    const rsi = calcRSI(closes);
+    const macd = calcMACD(closes);
+    const bb = calcBB(closes);
+    const sr = calcSR(closes, highs, lows);
+    const wyc = calcWyckoff(closes, volumes);
 
-                  {/* Key Levels */}
-                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                    <div style={{ fontSize:11, color:'#8b5cf6', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>🎯 ANA SEVİYELER</div>
-                    {ch.keyLevels && [
-                      ['Demand Zone (Alım)', ch.keyLevels.demandZone, '#34d399'],
-                      ['Supply Zone (Satış)', ch.keyLevels.supplyZone, '#f87171'],
-                      ['Kritik Likidite', ch.keyLevels.criticalLiquidity, '#f59e0b'],
-                      ['Geçersizleşme', ch.keyLevels.invalidation, '#94a3b8'],
-                    ].map(([l,v,c])=>v&&(
-                      <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
-                        <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                        <span style={{ color:c, fontWeight:700, fontSize:13 }}>{v}</span>
-                      </div>
-                    ))}
-                  </div>
+    const e8a=calcEMA(closes,8),e21a=calcEMA(closes,21),e50a=calcEMA(closes,50);
+    const e8=e8a[e8a.length-1],e21=e21a[e21a.length-1],e50=e50a[e50a.length-1];
 
-                  {/* Scenarios */}
-                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                    <div style={{ fontSize:11, color:'#10b981', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>🎲 SENARYO ANALİZİ</div>
-                    {ch.scenarios && (
-                      <>
-                        <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.15)', borderRadius:8, padding:'12px 14px', marginBottom:10 }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                            <span style={{ color:'#34d399', fontWeight:700, fontSize:13 }}>🟢 BOĞA</span>
-                            <span style={{ color:'#34d399', fontWeight:900 }}>%{ch.scenarios.bull?.pct}</span>
-                          </div>
-                          <div style={{ color:'#94a3b8', fontSize:12, lineHeight:1.5 }}>{ch.scenarios.bull?.desc}</div>
-                        </div>
-                        <div style={{ background:'rgba(248,113,113,0.06)', border:'1px solid rgba(248,113,113,0.15)', borderRadius:8, padding:'12px 14px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                            <span style={{ color:'#f87171', fontWeight:700, fontSize:13 }}>🔴 AYI</span>
-                            <span style={{ color:'#f87171', fontWeight:900 }}>%{ch.scenarios.bear?.pct}</span>
-                          </div>
-                          <div style={{ color:'#94a3b8', fontSize:12, lineHeight:1.5 }}>{ch.scenarios.bear?.desc}</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+    const vol24=md.total_volume.usd;
+    const mcap=md.market_cap.usd;
 
-                  {/* God Setup */}
-                  {ch.setup && (
-                    <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                      <div style={{ fontSize:11, color:'#f59e0b', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>⚡ TANRISAL SETUP</div>
-                      {[
-                        ['Giriş Bölgesi', ch.setup.entry, '#60a5fa'],
-                        ['Geçersizleşme', ch.setup.invalidation, '#f87171'],
-                        ['Hedef 1', ch.setup.tp1, '#34d399'],
-                        ['Hedef 2', ch.setup.tp2, '#10b981'],
-                        ['R:R Oranı', ch.setup.rr, '#f59e0b'],
-                      ].map(([l,v,c])=>v&&(
-                        <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
-                          <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                          <span style={{ color:c, fontWeight:700, fontSize:13 }}>{v}</span>
-                        </div>
-                      ))}
-                      {ch.setup.riskNote && (
-                        <div style={{ marginTop:10, padding:'8px 12px', background:'rgba(245,158,11,0.08)', borderRadius:6, color:'#f59e0b', fontSize:11 }}>
-                          ⚠️ {ch.setup.riskNote}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+    // AI'a gönderilecek kompakt veri
+    const aiData = {
+      coin: symbol,
+      price: price>=1?price.toFixed(4):price.toFixed(8),
+      chg: chg24.toFixed(2),
+      rsi,
+      macd: macd.trend,
+      bb: bb.pct.toFixed(2),
+      e8: e8.toFixed(6), e21: e21.toFixed(6), e50: e50.toFixed(6),
+      wyckoff: wyc.phase,
+      t30: wyc.t30pct,
+      s1: fmt(sr.sup[0]), s2: fmt(sr.sup[1]),
+      r1: fmt(sr.res[0]), r2: fmt(sr.res[1]),
+      vol: vol24>=1e9?`$${(vol24/1e9).toFixed(2)}B`:`$${(vol24/1e6).toFixed(1)}M`,
+      mcap: mcap>=1e9?`$${(mcap/1e9).toFixed(2)}B`:`$${(mcap/1e6).toFixed(1)}M`,
+      fg: fg?`${fg.value} (${fg.label})`:'N/A',
+    };
 
-                {/* God Insight */}
-                {ch.godInsight && (
-                  <div style={{ background:'linear-gradient(135deg,rgba(59,130,246,0.08),rgba(139,92,246,0.08))', border:'1px solid rgba(139,92,246,0.2)', borderRadius:12, padding:'20px 24px' }}>
-                    <div style={{ fontSize:11, color:'#a78bfa', fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:1 }}>🔮 TANRISAL İÇGÖRÜ</div>
-                    <div style={{ color:'#c4b5fd', fontSize:14, lineHeight:1.8 }}>{ch.godInsight}</div>
-                  </div>
-                )}
-              </div>
-            )}
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    let chartos = await chartosAnalysis(aiData, apiKey);
+    const aiUsed = !!chartos;
+    if (!chartos) chartos = fallbackChartos(aiData);
 
-            {/* TAB: LEVELS */}
-            {tab==='levels' && (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
-                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>DİRENÇ SEVİYELERİ</div>
-                  {data.resistances?.map((r,i)=>(
-                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
-                      <span style={{ color:'#64748b', fontSize:12 }}>R{i+1} Direnç</span>
-                      <span style={{ color:'#f87171', fontWeight:700 }}>{r}</span>
-                    </div>
-                  ))}
-                  <div style={{ padding:'10px 0', textAlign:'center', color:'#60a5fa', fontWeight:700, fontSize:14, borderTop:'1px solid #334155', borderBottom:'1px solid #334155', margin:'4px 0' }}>
-                    ●── {data.price} ──●
-                  </div>
-                  {data.supports?.map((s,i)=>(
-                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
-                      <span style={{ color:'#64748b', fontSize:12 }}>D{i+1} Destek</span>
-                      <span style={{ color:'#34d399', fontWeight:700 }}>{s}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>WYCKOFF ANALİZİ</div>
-                  {[
-                    ['Faz', WYCKOFF_TR[data.wyckoff?.phase]||data.wyckoff?.phase, '#60a5fa'],
-                    ['Sinyal', data.wyckoff?.signal, data.wyckoff?.signal==='BULLISH'?'#34d399':'#f87171'],
-                    ['30g Trend', `${data.wyckoff?.t30pct}%`, data.wyckoff?.t30pct>=0?'#34d399':'#f87171'],
-                  ].map(([l,v,c])=>(
-                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
-                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                      <span style={{ color:c, fontWeight:700 }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+    // Trend
+    const tDaily = e8>e50?'BULLISH':e8<e50?'BEARISH':'NEUTRAL';
+    const t4h = e8>e21?'BULLISH':e8<e21?'BEARISH':'NEUTRAL';
 
-            {/* TAB: TECHNICAL */}
-            {tab==='technical' && (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12 }}>
-                {[
-                  { title:'RSI (14)', items:[['Değer', data.rsi, data.rsi<35?'#34d399':data.rsi>65?'#f87171':'#f59e0b'],['Bölge', data.rsi<35?'Aşırı Satım':data.rsi>65?'Aşırı Alım':'Nötr']] },
-                  { title:'MACD', items:[['Trend', data.macdTrend, data.macdTrend==='YÜKSELİŞ'?'#34d399':'#f87171']] },
-                  { title:'Bollinger %B', items:[['Değer', data.bbPct, data.bbPct<0.2?'#34d399':data.bbPct>0.8?'#f87171':'#f59e0b'],['Konum', data.bbPct<0.2?'Alt Band':data.bbPct>0.8?'Üst Band':'Orta']] },
-                  { title:'EMA Yapısı', items:[['EMA 8', data.ema?.e8?.toFixed(6)],['EMA 21', data.ema?.e21?.toFixed(6)],['EMA 50', data.ema?.e50?.toFixed(6)],['Hizalama', data.trendDaily, data.trendDaily==='BULLISH'?'#34d399':'#f87171']] },
-                ].map(({title,items})=>(
-                  <div key={title} style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'14px 16px' }}>
-                    <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:10 }}>{title}</div>
-                    {items.map(([l,v,c])=>(
-                      <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #1e293b' }}>
-                        <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                        <span style={{ color:c||'#e2e8f0', fontSize:12, fontWeight:600 }}>{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+    // Sinyal sayısı
+    let bull=0,bear=0;
+    if(rsi<35)bull++;else if(rsi>65)bear++;else if(rsi>52)bull++;else bear++;
+    if(macd.h>0)bull++;else bear++;
+    if(bb.pct<0.2)bull++;else if(bb.pct>0.8)bear++;
+    if(e8>e21&&e21>e50)bull++;else if(e8<e21&&e21<e50)bear++;
+    if(wyc.signal==='BULLISH')bull++;else if(wyc.signal==='BEARISH')bear++;
 
-            {/* TAB: MARKET */}
-            {tab==='market' && (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:16 }}>
-                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>PİYASA VERİLERİ</div>
-                  {[
-                    ['Hacim (24s)', data.volume24h],
-                    ['Piyasa Değeri', data.marketCap],
-                    ['En Yüksek (24s)', data.high24h, '#34d399'],
-                    ['En Düşük (24s)', data.low24h, '#f87171'],
-                  ].map(([l,v,c])=>(
-                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
-                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                      <span style={{ color:c||'#e2e8f0', fontWeight:600, fontSize:13 }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-                {data.fearGreed && (
-                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                    <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>KORKU & AÇGÖZLÜLÜK</div>
-                    <div style={{ textAlign:'center' }}>
-                      <div style={{ fontSize:52, fontWeight:900, color:FG_COLOR(data.fearGreed.value) }}>{data.fearGreed.value}</div>
-                      <div style={{ color:'#64748b', fontSize:14, marginBottom:12 }}>{data.fearGreed.label}</div>
-                      <div style={{ background:'#1e293b', borderRadius:8, height:8, overflow:'hidden' }}>
-                        <div style={{ width:`${data.fearGreed.value}%`, height:'100%', background:'linear-gradient(90deg,#f87171,#f59e0b,#34d399)', transition:'width 1s' }}/>
-                      </div>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, color:'#475569' }}>
-                        <span>Aşırı Korku</span><span>Aşırı Açgözlülük</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
-                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>SİSTEM BİLGİSİ</div>
-                  {[
-                    ['Motor', data._meta?.engine],
-                    ['AI Modeli', data._meta?.aiModel],
-                    ['Token Tahmini', data._meta?.tokenEst],
-                    ['Cache TTL', data._meta?.cacheTTL],
-                    ['Desteklenen', `${data._meta?.supportedCoins} coin`],
-                  ].map(([l,v])=>(
-                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #1e293b' }}>
-                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
-                      <span style={{ color:'#94a3b8', fontSize:12 }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+    const verdict = bull-bear>=3?'STRONG_BUY':bull-bear>=1?'BUY':bull-bear<=-3?'STRONG_SELL':bull-bear<=-1?'SELL':'NEUTRAL';
 
-          </div>
-        )}
+    const result = {
+      // Temel
+      coin:symbol, geckoId, price:fmt(price), priceRaw:price,
+      change24h:`${chg24>=0?'+':''}${chg24.toFixed(2)}%`,
+      high24h:fmt(md.high_24h.usd), low24h:fmt(md.low_24h.usd),
+      volume24h:aiData.vol, marketCap:aiData.mcap,
+      timestamp:new Date().toISOString(),
 
-        {!data && !loading && !error && (
-          <div style={{ textAlign:'center', padding:'60px 20px', color:'#1e293b' }}>
-            <div style={{ fontSize:64, marginBottom:16 }}>🔱</div>
-            <div style={{ fontSize:18, color:'#334155' }}>Coin seç veya yaz, CHARTOS analiz etsin</div>
-            <div style={{ fontSize:13, color:'#1e293b', marginTop:8 }}>250 kripto para destekleniyor</div>
-          </div>
-        )}
-      </div>
+      // Karar
+      verdict, bullSignals:bull, bearSignals:bear,
+      trendDaily:tDaily, trend4h:t4h,
 
-      <footer style={{ textAlign:'center', padding:'32px 24px', color:'#1e293b', fontSize:11, borderTop:'1px solid #0f172a', marginTop:40 }}>
-        Deep Trade Scan • CHARTOS Engine • {new Date().getFullYear()}<br/>
-        <span style={{ color:'#1e293b' }}>Bu platform yatırım tavsiyesi vermez. Kripto piyasaları yüksek risk içerir.</span>
-      </footer>
-    </div>
-  );
+      // S/R
+      supports:sr.sup.map(v=>fmt(v)),
+      resistances:sr.res.map(v=>fmt(v)),
+
+      // Wyckoff
+      wyckoff:wyc,
+
+      // Teknik
+      rsi, macdTrend:macd.trend, bbPct:+bb.pct.toFixed(3),
+      ema:{e8:+e8.toFixed(8),e21:+e21.toFixed(8),e50:+e50.toFixed(8)},
+
+      // Fear & Greed
+      fearGreed:fg,
+
+      // CHARTOS Analizi
+      chartos,
+
+      _meta:{
+        engine:'CHARTOS v6.0',
+        aiModel:aiUsed?'claude-haiku-4-5-20251001':'fallback',
+        tokenEst:aiUsed?'~650':'0',
+        cacheTTL:'15dk',
+        supportedCoins:Object.keys(map).length,
+      }
+    };
+
+    setCache(ck, result);
+    return res.status(200).json(result);
+  } catch(e) {
+    return res.status(500).json({ error:'Sunucu hatası', detail:e.message });
+  }
 }
