@@ -362,7 +362,7 @@ export default function App() {
                 {[
                   { title:'RSI (14)', items:[['Değer', data.rsi, data.rsi<35?'#34d399':data.rsi>65?'#f87171':'#f59e0b'],['Bölge', data.rsi<35?'Aşırı Satım':data.rsi>65?'Aşırı Alım':'Nötr']] },
                   { title:'MACD', items:[['Trend', data.macdTrend, data.macdTrend==='YÜKSELİŞ'?'#34d399':'#f87171']] },
-                  { title:'Bollinger %B', items:[['Değer', data.bbPct, data.bbPct<0.2?'#34d399':data.bbPct>0.8?'#f87171':'#f59e0b'],['Konum', data.bbPct<0.2?'Alt Band':'Alt Bant>0.8?Üst Band':'Orta']] },
+                  { title:'Bollinger %B', items:[['Değer', data.bbPct, data.bbPct<0.2?'#34d399':data.bbPct>0.8?'#f87171':'#f59e0b'],['Konum', data.bbPct<0.2?'Alt Band':data.bbPct>0.8?'Üst Band':'Orta']] },
                   { title:'EMA Yapısı', items:[['EMA 8', data.ema?.e8?.toFixed(6)],['EMA 21', data.ema?.e21?.toFixed(6)],['EMA 50', data.ema?.e50?.toFixed(6)],['Hizalama', data.trendDaily, data.trendDaily==='BULLISH'?'#34d399':'#f87171']] },
                 ].map(({title,items})=>(
                   <div key={title} style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'14px 16px' }}>
