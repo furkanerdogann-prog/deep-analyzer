@@ -1,3 +1,4 @@
+// CHARTOS v6.1
 // pages/index.jsx — CHARTOS UI v6.0
 import { useState, useEffect, useCallback, useRef } from 'react';
 
