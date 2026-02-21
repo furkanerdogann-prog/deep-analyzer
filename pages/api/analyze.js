@@ -1,911 +1,449 @@
-// pages/api/analyze.js
-// Hybrid system: Technical analysis computed in code (unlimited), AI only for 4-sentence commentary.
+// pages/index.jsx — CHARTOS UI v6.0
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-// ─── CoinGecko ID Map (50+ coins) ────────────────────────────────────────────
-const GECKO_MAP = {
-  BTC: 'bitcoin',
-  ETH: 'ethereum',
-  BNB: 'binancecoin',
-  SOL: 'solana',
-  XRP: 'ripple',
-  ADA: 'cardano',
-  AVAX: 'avalanche-2',
-  DOT: 'polkadot',
-  MATIC: 'matic-network',
-  POL: 'matic-network',
-  POLYGON: 'matic-network',
-  LINK: 'chainlink',
-  UNI: 'uniswap',
-  ATOM: 'cosmos',
-  LTC: 'litecoin',
-  BCH: 'bitcoin-cash',
-  ALGO: 'algorand',
-  VET: 'vechain',
-  FIL: 'filecoin',
-  TRX: 'tron',
-  ETC: 'ethereum-classic',
-  XLM: 'stellar',
-  NEAR: 'near',
-  FTM: 'fantom',
-  SAND: 'the-sandbox',
-  MANA: 'decentraland',
-  AXS: 'axie-infinity',
-  GALA: 'gala',
-  ENJ: 'enjincoin',
-  CHZ: 'chiliz',
-  DOGE: 'dogecoin',
-  SHIB: 'shiba-inu',
-  PEPE: 'pepe',
-  WIF: 'dogwifcoin',
-  BONK: 'bonk',
-  FLOKI: 'floki',
-  INJ: 'injective-protocol',
-  SEI: 'sei-network',
-  TIA: 'celestia',
-  SUI: 'sui',
-  APT: 'aptos',
-  ARB: 'arbitrum',
-  OP: 'optimism',
-  AAVE: 'aave',
-  CRV: 'curve-dao-token',
-  MKR: 'maker',
-  SNX: 'synthetix-network-token',
-  COMP: 'compound-governance-token',
-  LDO: 'lido-dao',
-  RPL: 'rocket-pool',
-  IMX: 'immutable-x',
-  BLUR: 'blur',
-  TON: 'the-open-network',
-  NOT: 'notcoin',
-  RENDER: 'render-token',
-  RNDR: 'render-token',
-  GRT: 'the-graph',
-  EGLD: 'elrond-erd-2',
-  FLOW: 'flow',
-  HBAR: 'hedera-hashgraph',
-  KAS: 'kaspa',
-  STX: 'blockstack',
-  THETA: 'theta-token',
-  QNT: 'quant-network',
-  ROSE: 'oasis-network',
-  ZIL: 'zilliqa',
-  JASMY: 'jasmycoin',
+const VERDICT_MAP = {
+  STRONG_BUY:  { label:'GÜÇLÜ AL',  color:'#00ff88', bg:'rgba(0,255,136,0.1)',  glow:'rgba(0,255,136,0.3)',  emoji:'🚀' },
+  BUY:         { label:'AL',         color:'#00cc66', bg:'rgba(0,204,102,0.1)',  glow:'rgba(0,204,102,0.25)', emoji:'📈' },
+  NEUTRAL:     { label:'NÖTR',       color:'#f59e0b', bg:'rgba(245,158,11,0.1)', glow:'rgba(245,158,11,0.25)',emoji:'⚖️' },
+  SELL:        { label:'SAT',        color:'#ef4444', bg:'rgba(239,68,68,0.1)',  glow:'rgba(239,68,68,0.25)', emoji:'📉' },
+  STRONG_SELL: { label:'GÜÇLÜ SAT', color:'#dc2626', bg:'rgba(220,38,38,0.1)',  glow:'rgba(220,38,38,0.3)',  emoji:'💀' },
 };
 
-// ─── Price Formatter ──────────────────────────────────────────────────────────
-function fmt(price) {
-  if (price === null || price === undefined || isNaN(price)) return '$0';
-  const decimals = price >= 1000 ? 2 : price >= 1 ? 4 : price >= 0.001 ? 6 : 10;
-  return `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: decimals })}`;
-}
-
-// ─── Technical Indicator Calculations ────────────────────────────────────────
-
-function calcSMA(data, period) {
-  const result = [];
-  for (let i = period - 1; i < data.length; i++) {
-    const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-    result.push(sum / period);
-  }
-  return result;
-}
-
-function calcEMA(data, period) {
-  if (!data || data.length < 2) return data ? [data[0]] : [0];
-  const k = 2 / (period + 1);
-  const start = Math.min(period, data.length);
-  let ema = data.slice(0, start).reduce((a, b) => a + b, 0) / start;
-  const result = [ema];
-  for (let i = start; i < data.length; i++) {
-    ema = data[i] * k + ema * (1 - k);
-    result.push(ema);
-  }
-  return result;
-}
-
-function calcRSI(closes, period = 14) {
-  if (!closes || closes.length < period + 1) return 50;
-  const changes = closes.slice(1).map((v, i) => v - closes[i]);
-  let avgGain = 0, avgLoss = 0;
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) avgGain += changes[i];
-    else avgLoss += Math.abs(changes[i]);
-  }
-  avgGain /= period;
-  avgLoss /= period;
-  for (let i = period; i < changes.length; i++) {
-    const gain = changes[i] > 0 ? changes[i] : 0;
-    const loss = changes[i] < 0 ? Math.abs(changes[i]) : 0;
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
-  }
-  if (avgLoss === 0) return 100;
-  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(2));
-}
-
-function calcMACD(closes, fast = 12, slow = 26, signal = 9) {
-  if (!closes || closes.length < slow + signal) return { line: 0, signal_line: 0, histogram: 0 };
-  const emaFast = calcEMA(closes, fast);
-  const emaSlow = calcEMA(closes, slow);
-  const offset = emaFast.length - emaSlow.length;
-  const macdLine = emaSlow.map((v, i) => emaFast[i + offset] - v);
-  const signalLine = calcEMA(macdLine, signal);
-  const lastM = macdLine[macdLine.length - 1];
-  const lastS = signalLine[signalLine.length - 1];
-  return {
-    line: parseFloat(lastM.toFixed(8)),
-    signal_line: parseFloat(lastS.toFixed(8)),
-    histogram: parseFloat((lastM - lastS).toFixed(8)),
-  };
-}
-
-function calcBollingerBands(closes, period = 20, multiplier = 2) {
-  const slice = closes.slice(-Math.min(period, closes.length));
-  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
-  const variance = slice.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / slice.length;
-  const stdDev = Math.sqrt(variance);
-  const price = closes[closes.length - 1];
-  const upper = mean + multiplier * stdDev;
-  const lower = mean - multiplier * stdDev;
-  const bandwidth = mean > 0 ? (upper - lower) / mean : 0;
-  const percent_b = (upper - lower) > 0 ? (price - lower) / (upper - lower) : 0.5;
-  return {
-    upper: parseFloat(upper.toFixed(8)),
-    middle: parseFloat(mean.toFixed(8)),
-    lower: parseFloat(lower.toFixed(8)),
-    bandwidth: parseFloat(bandwidth.toFixed(4)),
-    percent_b: parseFloat(Math.min(1.5, Math.max(-0.5, percent_b)).toFixed(4)),
-  };
-}
-
-function calcStochastic(highs, lows, closes, kPeriod = 14, dPeriod = 3) {
-  if (!closes || closes.length < kPeriod) return { k: 50, d: 50 };
-  const kValues = [];
-  for (let i = kPeriod - 1; i < closes.length; i++) {
-    const highSlice = highs.slice(i - kPeriod + 1, i + 1);
-    const lowSlice = lows.slice(i - kPeriod + 1, i + 1);
-    const hh = Math.max(...highSlice);
-    const ll = Math.min(...lowSlice);
-    kValues.push(hh === ll ? 50 : ((closes[i] - ll) / (hh - ll)) * 100);
-  }
-  const dValues = calcSMA(kValues, Math.min(dPeriod, kValues.length));
-  return {
-    k: parseFloat(kValues[kValues.length - 1].toFixed(2)),
-    d: parseFloat(dValues[dValues.length - 1].toFixed(2)),
-  };
-}
-
-function calcOBV(closes, volumes) {
-  let obv = 0;
-  const arr = [0];
-  for (let i = 1; i < closes.length; i++) {
-    if (closes[i] > closes[i - 1]) obv += volumes[i];
-    else if (closes[i] < closes[i - 1]) obv -= volumes[i];
-    arr.push(obv);
-  }
-  const prev5 = arr[Math.max(0, arr.length - 6)];
-  const change5d = prev5 !== 0 ? ((obv - prev5) / Math.abs(prev5)) * 100 : 0;
-  return {
-    value: Math.round(obv),
-    trend: obv >= 0 ? 'POSITIVE' : 'NEGATIVE',
-    change_5d: parseFloat(change5d.toFixed(2)),
-  };
-}
-
-function calcADX(highs, lows, closes, period = 14) {
-  if (!closes || closes.length < period + 2) return { adx: 20, plus_di: 20, minus_di: 20 };
-  const tr = [], plusDM = [], minusDM = [];
-  for (let i = 1; i < closes.length; i++) {
-    tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
-    const up = highs[i] - highs[i - 1];
-    const down = lows[i - 1] - lows[i];
-    plusDM.push(up > down && up > 0 ? up : 0);
-    minusDM.push(down > up && down > 0 ? down : 0);
-  }
-  let sTR = tr.slice(0, period).reduce((a, b) => a + b, 0);
-  let sPDM = plusDM.slice(0, period).reduce((a, b) => a + b, 0);
-  let sMDM = minusDM.slice(0, period).reduce((a, b) => a + b, 0);
-  const dxArr = [];
-  for (let i = period; i < tr.length; i++) {
-    sTR = sTR - sTR / period + tr[i];
-    sPDM = sPDM - sPDM / period + plusDM[i];
-    sMDM = sMDM - sMDM / period + minusDM[i];
-    const pDI = (sPDM / sTR) * 100;
-    const mDI = (sMDM / sTR) * 100;
-    dxArr.push({ dx: (Math.abs(pDI - mDI) / (pDI + mDI || 1)) * 100, pDI, mDI });
-  }
-  if (!dxArr.length) return { adx: 20, plus_di: 20, minus_di: 20 };
-  const last = dxArr[dxArr.length - 1];
-  const adxVal = dxArr.slice(-period).reduce((s, v) => s + v.dx, 0) / Math.min(period, dxArr.length);
-  return {
-    adx: parseFloat(adxVal.toFixed(2)),
-    plus_di: parseFloat(last.pDI.toFixed(2)),
-    minus_di: parseFloat(last.mDI.toFixed(2)),
-  };
-}
-
-function calcVWAP(closes, volumes) {
-  let sumPV = 0, sumV = 0;
-  for (let i = 0; i < closes.length; i++) {
-    sumPV += closes[i] * volumes[i];
-    sumV += volumes[i];
-  }
-  return sumV > 0 ? parseFloat((sumPV / sumV).toFixed(8)) : closes[closes.length - 1];
-}
-
-function calcIchimoku(highs, lows, closes) {
-  const n = closes.length - 1;
-  const hh = (arr, p, idx) => Math.max(...arr.slice(Math.max(0, idx - p + 1), idx + 1));
-  const ll = (arr, p, idx) => Math.min(...arr.slice(Math.max(0, idx - p + 1), idx + 1));
-  const tenkan = (hh(highs, 9, n) + ll(lows, 9, n)) / 2;
-  const kijun = (hh(highs, 26, n) + ll(lows, 26, n)) / 2;
-  const spanA = (tenkan + kijun) / 2;
-  const spanB = (hh(highs, 52, n) + ll(lows, 52, n)) / 2;
-  const price = closes[n];
-  const cloudTop = Math.max(spanA, spanB);
-  const cloudBot = Math.min(spanA, spanB);
-  let signal = 'NEUTRAL';
-  if (price > cloudTop && tenkan > kijun) signal = 'BULLISH';
-  else if (price < cloudBot && tenkan < kijun) signal = 'BEARISH';
-  return {
-    tenkan: parseFloat(tenkan.toFixed(8)),
-    kijun: parseFloat(kijun.toFixed(8)),
-    span_a: parseFloat(spanA.toFixed(8)),
-    span_b: parseFloat(spanB.toFixed(8)),
-    price_vs_cloud: price > cloudTop ? 'ABOVE' : price < cloudBot ? 'BELOW' : 'INSIDE',
-    signal,
-  };
-}
-
-// ─── Support / Resistance ─────────────────────────────────────────────────────
-function calcSupportResistance(closes, highs, lows) {
-  const price = closes[closes.length - 1];
-  const rawSupports = [], rawResistances = [];
-
-  for (let i = 2; i < closes.length - 2; i++) {
-    if (lows[i] < lows[i - 1] && lows[i] < lows[i - 2] && lows[i] < lows[i + 1] && lows[i] < lows[i + 2]) {
-      rawSupports.push(lows[i]);
-    }
-    if (highs[i] > highs[i - 1] && highs[i] > highs[i - 2] && highs[i] > highs[i + 1] && highs[i] > highs[i + 2]) {
-      rawResistances.push(highs[i]);
-    }
-  }
-
-  const cluster = (levels) => {
-    const sorted = [...levels].sort((a, b) => a - b);
-    const clustered = [];
-    let group = [];
-    for (const l of sorted) {
-      if (!group.length || (l - group[0]) / (group[0] || 1) < 0.015) {
-        group.push(l);
-      } else {
-        clustered.push(group.reduce((a, b) => a + b, 0) / group.length);
-        group = [l];
-      }
-    }
-    if (group.length) clustered.push(group.reduce((a, b) => a + b, 0) / group.length);
-    return clustered;
-  };
-
-  let supports = cluster(rawSupports).filter(s => s < price).sort((a, b) => b - a).slice(0, 3);
-  let resistances = cluster(rawResistances).filter(r => r > price).sort((a, b) => a - b).slice(0, 3);
-
-  while (supports.length < 3) supports.push(price * (1 - 0.03 * (supports.length + 1)));
-  while (resistances.length < 3) resistances.push(price * (1 + 0.03 * (resistances.length + 1)));
-
-  return { supports, resistances };
-}
-
-// ─── Wyckoff Phase Detection ──────────────────────────────────────────────────
-function detectWyckoff(closes, volumes) {
-  if (!closes || closes.length < 10) return { phase: 'UNKNOWN', signal: 'NEUTRAL', score: 5 };
-  const n = closes.length;
-  const maxP = Math.max(...closes);
-  const minP = Math.min(...closes);
-  const range = maxP - minP || 1;
-  const posRatio = (closes[n - 1] - minP) / range; // 0=bottom, 1=top
-
-  const recent = volumes.slice(-7);
-  const older = volumes.slice(-21, -7);
-  const avgRecent = recent.reduce((a, b) => a + b, 0) / recent.length;
-  const avgOlder = older.length ? older.reduce((a, b) => a + b, 0) / older.length : avgRecent;
-  const volRatio = avgOlder > 0 ? avgRecent / avgOlder : 1;
-
-  const trend30 = (closes[n - 1] - closes[0]) / closes[0];
-  const trend7 = (closes[n - 1] - closes[Math.max(0, n - 8)]) / closes[Math.max(0, n - 8)];
-
-  let phase, signal, score;
-
-  if (posRatio < 0.25 && volRatio > 1.15 && trend7 > -0.03) {
-    phase = 'ACCUMULATION'; signal = 'BULLISH'; score = 7;
-  } else if (posRatio < 0.25 && trend30 < -0.15) {
-    phase = 'MARKDOWN'; signal = 'BEARISH'; score = 3;
-  } else if (posRatio > 0.75 && volRatio > 1.2 && trend7 < 0.02) {
-    phase = 'DISTRIBUTION'; signal = 'BEARISH'; score = 3;
-  } else if (posRatio > 0.75 && trend30 > 0.15) {
-    phase = 'MARKUP'; signal = 'BULLISH'; score = 7;
-  } else if (posRatio >= 0.35 && posRatio <= 0.65 && Math.abs(trend7) < 0.05) {
-    phase = 'RE_ACCUMULATION'; signal = trend30 > 0 ? 'BULLISH' : 'NEUTRAL'; score = trend30 > 0 ? 6 : 5;
-  } else {
-    phase = trend30 > 0 ? 'MARKUP' : 'MARKDOWN';
-    signal = trend30 > 0 ? 'BULLISH' : 'BEARISH';
-    score = trend30 > 0 ? 6 : 4;
-  }
-
-  return {
-    phase,
-    signal,
-    score,
-    price_position_pct: parseFloat((posRatio * 100).toFixed(1)),
-    vol_ratio: parseFloat(volRatio.toFixed(2)),
-    trend_30d_pct: parseFloat((trend30 * 100).toFixed(2)),
-  };
-}
-
-// ─── Manipulation Detection ───────────────────────────────────────────────────
-function detectManipulation(closes, highs, lows, volumes) {
-  if (!closes || closes.length < 5) return { score: 0, signals: [], risk: 'LOW', vol_spike_ratio: 1, avg_wick_ratio: 0 };
-  const n = closes.length;
-  const signals = [];
-  let score = 0;
-
-  // Volume spike
-  const volWindow = volumes.slice(-Math.min(20, n));
-  const avgVol = volWindow.reduce((a, b) => a + b, 0) / volWindow.length;
-  const lastVol = volumes[n - 1];
-  const volSpike = avgVol > 0 ? lastVol / avgVol : 1;
-  if (volSpike > 3) { signals.push(`Hacim ani artışı: ${volSpike.toFixed(1)}x ortalama`); score += 25; }
-  else if (volSpike > 2) { signals.push(`Yüksek hacim: ${volSpike.toFixed(1)}x ortalama`); score += 10; }
-
-  // Düşük hacimde fiyat hareketi (hacim olmadan pump)
-  if (volSpike < 0.4 && n >= 5) {
-    const move = Math.abs((closes[n - 1] - closes[n - 5]) / (closes[n - 5] || 1));
-    if (move > 0.05) { signals.push(`Düşük hacimde %${(move*100).toFixed(1)} fiyat hareketi`); score += 20; }
-  }
-
-  // Fitil analizi (stop avı tespiti)
-  const wickRatios = [];
-  for (let i = Math.max(1, n - 7); i < n; i++) {
-    const bodySize = Math.abs(closes[i] - closes[i - 1]);
-    const totalRange = highs[i] - lows[i];
-    wickRatios.push(totalRange > 0 ? (totalRange - bodySize) / totalRange : 0);
-  }
-  const avgWick = wickRatios.reduce((a, b) => a + b, 0) / (wickRatios.length || 1);
-  if (avgWick > 0.65) { signals.push(`Yüksek fitil oranı (%${(avgWick*100).toFixed(0)}) — stop avı olası`); score += 20; }
-  else if (avgWick > 0.5) { signals.push(`Artmış fitil oranı (%${(avgWick*100).toFixed(0)})`); score += 8; }
-
-  // Son aralığa göre aşırı büyük mum
-  if (n >= 6) {
-    const range5 = Math.max(...highs.slice(-6)) - Math.min(...lows.slice(-6));
-    const lastCandle = highs[n - 1] - lows[n - 1];
-    if (range5 > 0 && lastCandle > range5 * 0.75) { signals.push('5 günlük aralığa göre aşırı büyük mum'); score += 15; }
-  }
-
-  const risk = score > 50 ? 'HIGH' : score > 25 ? 'MEDIUM' : 'LOW';
-  return {
-    score: Math.min(100, score),
-    signals,
-    risk,
-    vol_spike_ratio: parseFloat(volSpike.toFixed(2)),
-    avg_wick_ratio: parseFloat((avgWick * 100).toFixed(1)),
-  };
-}
-
-// ─── Bull / Bear Signal Counter (max 10/10) ───────────────────────────────────
-function countBullBearSignals({ rsi, macd, bb, stoch, obv, adx, vwap, ichimoku, price, ema8, ema21, ema50, wyckoff }) {
-  let bull = 0, bear = 0;
-
-  // 1. RSI
-  if (rsi < 32) bull++; else if (rsi > 68) bear++;
-  else if (rsi > 55) bull++; else if (rsi < 45) bear++;
-
-  // 2. MACD
-  if (macd.histogram > 0) bull++; else if (macd.histogram < 0) bear++;
-
-  // 3. Bollinger Bands %B
-  if (bb.percent_b < 0.15) bull++; else if (bb.percent_b > 0.85) bear++;
-  else if (bb.percent_b > 0.5) bull++; else bear++;
-
-  // 4. Stochastic
-  if (stoch.k < 25 && stoch.k > stoch.d) bull++;
-  else if (stoch.k > 75 && stoch.k < stoch.d) bear++;
-
-  // 5. OBV
-  if (obv.trend === 'POSITIVE' && obv.change_5d > 2) bull++;
-  else if (obv.trend === 'NEGATIVE' && obv.change_5d < -2) bear++;
-
-  // 6. EMA ribbon alignment
-  if (ema8 > ema21 && ema21 > ema50) bull++;
-  else if (ema8 < ema21 && ema21 < ema50) bear++;
-
-  // 7. Price vs VWAP
-  if (price > vwap * 1.005) bull++; else if (price < vwap * 0.995) bear++;
-
-  // 8. ADX directional
-  if (adx.adx > 20 && adx.plus_di > adx.minus_di) bull++;
-  else if (adx.adx > 20 && adx.minus_di > adx.plus_di) bear++;
-
-  // 9. Ichimoku
-  if (ichimoku.signal === 'BULLISH') bull++;
-  else if (ichimoku.signal === 'BEARISH') bear++;
-
-  // 10. Wyckoff
-  if (wyckoff.signal === 'BULLISH') bull++;
-  else if (wyckoff.signal === 'BEARISH') bear++;
-
-  return { bull: Math.min(10, bull), bear: Math.min(10, bear) };
-}
-
-// ─── Trade Plan ───────────────────────────────────────────────────────────────
-function calcTradePlan(price, supports, resistances, { bb, adx }, { bull, bear }) {
-  const isBullish = bull >= bear;
-  const strength = Math.max(bull, bear) / 10;
-
-  let entry, sl, tp1, tp2, tp3;
-
-  if (isBullish) {
-    entry = supports[0] ? Math.min(price, (price + supports[0]) / 2) : price;
-    sl = supports[0] ? supports[0] * 0.983 : price * 0.95;
-    tp1 = resistances[0] || price * 1.05;
-    tp2 = resistances[1] || price * 1.10;
-    tp3 = resistances[2] || price * 1.18;
-  } else {
-    entry = resistances[0] ? Math.max(price, (price + resistances[0]) / 2) : price;
-    sl = resistances[0] ? resistances[0] * 1.017 : price * 1.05;
-    tp1 = supports[0] || price * 0.95;
-    tp2 = supports[1] || price * 0.90;
-    tp3 = supports[2] || price * 0.83;
-  }
-
-  const riskPct = Math.abs(entry - sl) / (entry || 1);
-  const rewardPct = Math.abs(tp1 - entry) / (entry || 1);
-  const rr = riskPct > 0 ? rewardPct / riskPct : 1;
-
-  // Leverage: inversely proportional to BB bandwidth and volatility
-  const volatility = Math.max(0.01, bb.bandwidth || 0.05);
-  const rawLeverage = Math.round((0.02 / volatility) * strength * 10);
-  const leverage = Math.max(1, Math.min(10, rawLeverage || 2));
-
-  return {
-    direction: isBullish ? 'LONG' : 'SHORT',
-    entry: parseFloat(entry.toFixed(8)),
-    stop_loss: parseFloat(sl.toFixed(8)),
-    tp1: parseFloat(tp1.toFixed(8)),
-    tp2: parseFloat(tp2.toFixed(8)),
-    tp3: parseFloat(tp3.toFixed(8)),
-    leverage: `${leverage}x`,
-    risk_reward: `1:${rr.toFixed(2)}`,
-    risk_pct: parseFloat((riskPct * 100).toFixed(2)),
-    position_size: `${Math.max(1, Math.min(25, Math.round(strength * 20)))}%`,
-  };
-}
-
-// ─── 16-Layer Score Calculator ────────────────────────────────────────────────
-function calc16LayerScores({ rsi, macd, bb, stoch, obv, adx, vwap, ichimoku, price, ema8, ema21, ema50 }, signals, wyckoff, manipulation, srLevels, fearGreed) {
-  const { bull, bear } = signals;
-  const fg = fearGreed ? fearGreed.value : 50;
-
-  const clamp = (v) => parseFloat(Math.min(10, Math.max(0, v)).toFixed(1));
-
-  // 1. Wyckoff
-  const s1 = clamp(wyckoff.score);
-
-  // 2. Smart Money Concept — EMA structure
-  const s2 = clamp(ema8 > ema21 && ema21 > ema50 ? 8 : ema8 < ema21 && ema21 < ema50 ? 2 : 5);
-
-  // 3. ICT — VWAP + structure
-  const s3 = clamp(price > vwap ? (ichimoku.price_vs_cloud === 'ABOVE' ? 8 : 6.5) : (ichimoku.price_vs_cloud === 'BELOW' ? 2 : 3.5));
-
-  // 4. Manipulation detection (inverse)
-  const s4 = clamp(10 - manipulation.score / 10);
-
-  // 5. On-chain proxy (OBV trend + momentum)
-  const s5 = clamp(obv.trend === 'POSITIVE' ? (obv.change_5d > 5 ? 8 : 6.5) : (obv.change_5d < -5 ? 2 : 3.5));
-
-  // 6. Order flow (MACD histogram relative to price)
-  const macdNorm = price > 0 ? (macd.histogram / price) * 500 : 0;
-  const s6 = clamp(5 + macdNorm);
-
-  // 7. Volatility regime (BB bandwidth: narrow=squeeze=potential breakout)
-  const bw = bb.bandwidth;
-  const s7 = clamp(bw < 0.04 ? 7 : bw > 0.25 ? 4 : 5 + (0.12 - bw) * 15);
-
-  // 8. Divergence (RSI vs EMA trend)
-  const rsiBull = rsi > 50, emaBull = ema8 > ema21;
-  const s8 = clamp(rsiBull && emaBull ? 7.5 : !rsiBull && !emaBull ? 2.5 : rsiBull && !emaBull ? 6 : 4);
-
-  // 9. Technical indicators composite
-  const rsiScore = ((rsi - 20) / 60) * 10;
-  const stochScore = stoch.k > stoch.d ? 7 : 3;
-  const s9 = clamp((rsiScore + stochScore + (macd.histogram > 0 ? 7 : 3)) / 3);
-
-  // 10. Support/Resistance quality (based on how many S/R found from data)
-  const srQuality = srLevels.supports.length + srLevels.resistances.length;
-  const s10 = clamp(srQuality >= 6 ? 8 : srQuality >= 4 ? 6 : 4);
-
-  // 11. Sentiment (Fear & Greed)
-  const s11 = clamp(fg / 10);
-
-  // 12. Macro (ADX trend strength)
-  const s12 = clamp(adx.adx > 30 ? (adx.plus_di > adx.minus_di ? 8 : 2) : adx.adx > 20 ? (adx.plus_di > adx.minus_di ? 7 : 3) : 5);
-
-  // 13. Liquidation risk (Stochastic zone)
-  const s13 = clamp(stoch.k < 25 ? 7.5 : stoch.k > 75 ? 3 : 5);
-
-  // 14. Pattern recognition (RSI+Stoch confluence)
-  const s14 = clamp(rsi < 35 && stoch.k < 25 ? 8.5 : rsi > 65 && stoch.k > 75 ? 1.5 : 5);
-
-  // 15. Risk management signal
-  const s15 = clamp(bull >= 7 ? 8 : bull >= 5 ? 6.5 : bear >= 7 ? 2 : bear >= 5 ? 3.5 : 5);
-
-  // 16. Final synthesis (average of all layers)
-  const prev15 = [s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15];
-  const s16 = clamp(prev15.reduce((a, b) => a + b, 0) / 15);
-
-  return [...prev15, s16];
-}
-
-// ─── AI Commentary (JSON format, max 800 tokens) ──────────────────────────────
-async function getAICommentary(summaryData, apiKey) {
-  if (!apiKey) return null;
-  try {
-    const prompt = `MUTLAKA TÜM YANITLARINI TÜRKÇE YAZ. HİÇBİR İNGİLİZCE KELİME KULLANMA. Teknik terimleri bile Türkçe yaz: exchange outflows=borsa çıkışları, distribution=dağıtım, accumulation=birikim, bullish=yükseliş, bearish=düşüş, overbought=aşırı alım, oversold=aşırı satım, support=destek, resistance=direnç, breakout=kırılım, breakdown=çöküş, squeeze=sıkışma, divergence=sapma, absorption=emilim, whale=balina, funding=fonlama, long=uzun, short=kısa, trend=eğilim, momentum=ivme, volume=hacim, volatility=oynaklık, liquidity=likidite, spread=fark, wick=fitil, candle=mum, pattern=formasyon, reversal=dönüş, continuation=devam, rally=ralli, dump=çöküş, pump=pompa, fake breakout=sahte kırılım, stop hunt=stop avı.
-
-Sen profesyonel bir kripto analistsin. Aşağıdaki teknik veriye bakarak analiz yap.
-
-Coin: ${summaryData.coin} | Fiyat: $${summaryData.price}
-RSI: ${summaryData.rsi} | MACD: ${summaryData.macd_trend} | Bollinger %B: ${summaryData.bb_pct_b}
-EMA durumu: ${summaryData.ema_trend} | VWAP: ${summaryData.vwap_status}
-Wyckoff: ${summaryData.wyckoff_phase} | ADX: ${summaryData.adx}
-Sinyaller: ${summaryData.bull} BOĞA / ${summaryData.bear} AYI (10 üzerinden)
-Korku/Açgözlülük: ${summaryData.fear_greed}
-Manipülasyon skoru: ${summaryData.manip_score}/100
-Genel skor: ${summaryData.overall_score}/100 | Karar: ${summaryData.verdict}
-
-Tüm yanıtlarını TÜRKÇE yaz. Yalnızca geçerli JSON döndür, başka hiçbir şey yazma:
-{"summary":"3 cümle Türkçe genel özet","mmMove":"2 cümle market yapıcı stratejisi","bullScenario":"2 cümle yükseliş senaryosu","bearScenario":"2 cümle düşüş senaryosu","warnings":["uyarı1","uyarı2","uyarı3"],"onchain_summary":"3 cümle zincir üstü özet","orderflow_summary":"3 cümle emir akışı özeti"}`;
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        temperature: 0.4,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    const text = data.content?.[0]?.text?.trim();
-    if (!text) return null;
-    // Extract and parse JSON from response
+const POPULAR = [
+  'BTC','ETH','BNB','SOL','XRP','ADA','AVAX','DOT','MATIC','LINK',
+  'UNI','ATOM','LTC','DOGE','SHIB','PEPE','WIF','BONK','INJ','SUI',
+  'APT','ARB','OP','NEAR','TIA','TON','RENDER','AAVE','HBAR','KAS',
+  'STX','FLOKI','NOT','IMX','LDO','SEI','PENGU','TRUMP','FTM','SAND',
+];
+
+const WYCKOFF_TR = { ACCUMULATION:'Birikim 🟢', MARKUP:'Yükseliş 🚀', DISTRIBUTION:'Dağıtım 🔴', MARKDOWN:'Düşüş 💀', RE_ACCUMULATION:'Yeniden Birikim 🟡' };
+const FG_COLOR = v => v<25?'#ef4444':v<45?'#f97316':v<55?'#f59e0b':v<75?'#84cc16':'#00ff88';
+
+export default function App() {
+  const [query, setQuery]     = useState('');
+  const [suggestions, setSug] = useState([]);
+  const [showSug, setShowSug] = useState(false);
+  const [coinList, setCoins]  = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState('');
+  const [tab, setTab]         = useState('chartos');
+  const inputRef = useRef();
+
+  useEffect(() => {
+    fetch('/api/coins').then(r=>r.json()).then(d=>{ if(d.coins) setCoins(d.coins); }).catch(()=>{});
+  }, []);
+
+  useEffect(() => {
+    if (!query || query.length < 1) { setSug([]); setShowSug(false); return; }
+    const q = query.toUpperCase();
+    const r = coinList.filter(c=>c.symbol.startsWith(q)||c.name.toUpperCase().includes(q)).slice(0,6);
+    setSug(r); setShowSug(r.length>0);
+  }, [query, coinList]);
+
+  const analyze = useCallback(async (sym) => {
+    const target = (sym||query).toUpperCase().replace(/USDT?$/i,'').trim();
+    if (!target) return;
+    setLoading(true); setError(''); setData(null); setShowSug(false);
     try {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]);
-    } catch {}
-    // If JSON parse fails, wrap plain text as summary
-    return { summary: text, mmMove: '', bullScenario: '', bearScenario: '', warnings: [], onchain_summary: '', orderflow_summary: '' };
-  } catch {
-    return null;
-  }
-}
+      const r = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({coin:target}) });
+      const j = await r.json();
+      if (!r.ok) { setError(j.error||'Analiz başarısız'); return; }
+      setData(j); setTab('chartos');
+    } catch { setError('Bağlantı hatası'); }
+    finally { setLoading(false); }
+  }, [query]);
 
-function generateFallbackCommentary(summaryData) {
-  const { coin, price, rsi, bull, bear, wyckoff_phase, verdict, macd_trend, ema_trend, vwap_status, fear_greed, adx, manip_score, overall_score } = summaryData;
-  const dominant = bull > bear ? 'yükseliş' : 'düşüş';
-  const rsiZone = rsi < 35 ? 'aşırı satım' : rsi > 65 ? 'aşırı alım' : 'nötr';
-  const fgNote = fear_greed !== 'Bilinmiyor' ? ` Piyasa duyarlılığı ${fear_greed} seviyesinde.` : '';
-  const guclu = adx > 25 ? 'güçlü' : 'zayıf';
+  const pick = (sym) => { setQuery(sym); setShowSug(false); analyze(sym); };
+  const vc = data ? (VERDICT_MAP[data.verdict]||VERDICT_MAP.NEUTRAL) : null;
+  const ch = data?.chartos;
 
-  const summary =
-    `${coin} $${price} seviyesinde işlem görmekte olup RSI ${rsi} ile ${rsiZone} bölgesindedir.` +
-    ` Wyckoff ${wyckoff_phase} fazını gösterirken EMA yapısı ${ema_trend} yönünü teyit ediyor.` +
-    ` Genel skor ${overall_score}/100 ile ${verdict} kararına işaret etmektedir.${fgNote}`;
+  return (
+    <div style={{ minHeight:'100vh', background:'#030712', color:'#e2e8f0', fontFamily:"'Inter',system-ui,sans-serif" }}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0;}
+        ::selection{background:#1d4ed8;color:#fff;}
+        ::-webkit-scrollbar{width:6px;height:6px;}
+        ::-webkit-scrollbar-track{background:#0f172a;}
+        ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px;}
+        input{outline:none;}button{cursor:pointer;border:none;outline:none;}
+        .sug:hover{background:#1e293b!important;}
+        .chip:hover{background:#1e293b!important;color:#94a3b8!important;}
+        .tab-btn:hover{color:#e2e8f0!important;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+        @keyframes glow{0%,100%{opacity:.7;}50%{opacity:1;}}
+        @keyframes slide{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+      `}</style>
 
-  const mmMove =
-    `${dominant === 'yükseliş' ? 'Piyasa yapıcılar birikimi tamamlayarak yükseliş testlerine başlayabilir' : 'Piyasa yapıcılar dağıtım safhasında satış baskısı uyguluyor olabilir'}.` +
-    ` ADX ${adx} seviyesiyle ${guclu} bir eğilim söz konusu; ${dominant === 'yükseliş' ? 'alım' : 'satım'} emirleri ağır basmaktadır.`;
+      {/* TOP NAV */}
+      <nav style={{ borderBottom:'1px solid #0f172a', background:'rgba(3,7,18,0.95)', backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, padding:'0 24px' }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', height:56, display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#3b82f6,#8b5cf6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>⚡</div>
+            <span style={{ fontSize:18, fontWeight:800, background:'linear-gradient(90deg,#60a5fa,#a78bfa)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>DEEP TRADE SCAN</span>
+          </div>
+          <div style={{ fontSize:11, color:'#475569', background:'#0f172a', border:'1px solid #1e293b', borderRadius:20, padding:'3px 10px' }}>CHARTOS ENGINE</div>
+          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
+            {data?._cached && <span style={{ fontSize:10, color:'#f59e0b', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:12, padding:'2px 8px' }}>⚡ CACHE</span>}
+            <span style={{ fontSize:11, color:'#475569' }}>{data?._meta?.supportedCoins||250} coin</span>
+          </div>
+        </div>
+      </nav>
 
-  const bullScenario =
-    `${vwap_status} konumundan güç alan ${coin}, ${bull}/10 boğa sinyali desteğiyle kısa vadeli yukarı atağa geçebilir.` +
-    ` RSI ${rsiZone} bölgesinden dönüş ve MACD çaprazı bu senaryoyu destekler niteliktedir.`;
+      <div style={{ maxWidth:1280, margin:'0 auto', padding:'32px 24px' }}>
 
-  const bearScenario =
-    `MACD ${macd_trend} ivmesi ve ${bear}/10 ayı sinyali baskı devam ederse kritik destek seviyeleri test edilebilir.` +
-    ` Manipülasyon skoru ${manip_score}/100 — olağandışı fiyat hareketlerine ve stop avlarına karşı dikkatli olunmalıdır.`;
+        {/* HERO SEARCH */}
+        <div style={{ textAlign:'center', marginBottom:40 }}>
+          <h1 style={{ fontSize:36, fontWeight:900, marginBottom:8, lineHeight:1.2 }}>
+            <span style={{ background:'linear-gradient(135deg,#60a5fa,#a78bfa,#34d399)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
+              Tanrısal Kripto Analizi
+            </span>
+          </h1>
+          <p style={{ color:'#64748b', fontSize:15, marginBottom:28 }}>Smart Money • Wyckoff • ICT • 6 Katman Analiz</p>
 
-  const warnings = [
-    `RSI ${rsi} ile ${rsiZone} bölgesinde; ani ${rsi < 50 ? 'yükseliş' : 'düşüş'} tepkilerine karşı hazırlıklı olun.`,
-    `Manipülasyon skoru ${manip_score}/100 — stop avı ve sahte kırılım riskine karşı sıkı zarar-kes seviyeleri kullanın.`,
-    `${wyckoff_phase} fazında piyasa; kaldıraç oranını ve pozisyon büyüklüğünü ${manip_score > 50 ? 'düşük' : 'orta'} tutmanız önerilir.`,
-  ];
+          <div style={{ position:'relative', maxWidth:520, margin:'0 auto' }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <div style={{ position:'relative', flex:1 }}>
+                <input ref={inputRef} value={query}
+                  onChange={e=>setQuery(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&analyze()}
+                  onFocus={()=>suggestions.length>0&&setShowSug(true)}
+                  onBlur={()=>setTimeout(()=>setShowSug(false),150)}
+                  placeholder="BTC, ETH, SOL, PENGU..."
+                  style={{ width:'100%', padding:'14px 20px', background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, color:'#e2e8f0', fontSize:15, transition:'border-color .2s' }}
+                />
+                {showSug && suggestions.length > 0 && (
+                  <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, overflow:'hidden', zIndex:200, boxShadow:'0 20px 40px rgba(0,0,0,0.5)' }}>
+                    {suggestions.map(c => (
+                      <div key={c.id} className="sug" onMouseDown={()=>pick(c.symbol)}
+                        style={{ padding:'10px 16px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #0f172a' }}>
+                        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                          {c.image&&<img src={c.image} alt="" style={{ width:22, height:22, borderRadius:'50%' }}/>}
+                          <span style={{ fontWeight:700, color:'#60a5fa', fontSize:14 }}>{c.symbol}</span>
+                          <span style={{ color:'#475569', fontSize:12 }}>{c.name}</span>
+                          <span style={{ color:'#475569', fontSize:11 }}>#{c.rank}</span>
+                        </div>
+                        <span style={{ color:c.change24h>=0?'#34d399':'#f87171', fontSize:12, fontWeight:600 }}>
+                          {c.change24h>=0?'+':''}{c.change24h?.toFixed(2)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={()=>analyze()} disabled={loading}
+                style={{ padding:'14px 24px', background:loading?'#1e293b':'linear-gradient(135deg,#3b82f6,#8b5cf6)', borderRadius:12, color:'#fff', fontWeight:700, fontSize:14, minWidth:110, boxShadow:loading?'none':'0 0 20px rgba(59,130,246,0.3)', transition:'all .2s' }}>
+                {loading ? <span style={{ animation:'spin 1s linear infinite', display:'inline-block' }}>⟳</span> : '🔱 ANALİZ'}
+              </button>
+            </div>
+          </div>
 
-  const onchain_summary =
-    `Zincir üstü veriler mevcut API kapsamında sınırlıdır; borsa çıkışları ve büyük cüzdan hareketleri ayrıca izlenmelidir.` +
-    ` Anlık hacim profili ${dominant} baskısının ${dominant === 'yükseliş' ? 'alıcı' : 'satıcı'} tarafında yoğunlaştığına işaret ediyor.` +
-    ` VWAP ${vwap_status} konumu kurumsal ilginin ${dominant === 'yükseliş' ? 'pozitif' : 'negatif'} yönde olduğunu göstermektedir.`;
+          {/* Popular chips */}
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'center', marginTop:20 }}>
+            {POPULAR.map(s=>(
+              <button key={s} className="chip" onClick={()=>pick(s)}
+                style={{ padding:'5px 12px', background:'#0f172a', border:'1px solid #1e293b', borderRadius:20, color:'#64748b', fontSize:11, fontWeight:600, transition:'all .15s' }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
 
-  const orderflow_summary =
-    `MACD histogramı ${macd_trend} ivmesiyle emir akışının ${dominant === 'yükseliş' ? 'alım' : 'satım'} yönünde şekillendiğini gösteriyor.` +
-    ` Stokastik ve RSI verileri ${rsiZone} bölgesinde ${dominant === 'yükseliş' ? 'alıcı' : 'satıcı'} ağırlığını teyit etmektedir.` +
-    ` Toplam sinyal dağılımı ${bull}/10 boğa ve ${bear}/10 ayı ile ${dominant} eğilimini desteklemektedir.`;
+        {/* ERROR */}
+        {error && (
+          <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:12, padding:'14px 20px', color:'#f87171', marginBottom:24, textAlign:'center' }}>
+            ⚠️ {error}
+          </div>
+        )}
 
-  return { summary, mmMove, bullScenario, bearScenario, warnings, onchain_summary, orderflow_summary };
-}
+        {/* LOADING */}
+        {loading && (
+          <div style={{ textAlign:'center', padding:80 }}>
+            <div style={{ width:56, height:56, border:'3px solid #1e293b', borderTop:'3px solid #3b82f6', borderRadius:'50%', animation:'spin 1s linear infinite', margin:'0 auto 20px' }}/>
+            <div style={{ color:'#475569', fontSize:15 }}>CHARTOS analiz yapıyor...</div>
+            <div style={{ color:'#334155', fontSize:12, marginTop:6 }}>6 katman hesaplanıyor</div>
+          </div>
+        )}
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'İzin verilmeyen istek metodu' });
-  }
+        {/* RESULTS */}
+        {data && !loading && (
+          <div style={{ animation:'slide 0.4s ease' }}>
 
-  const { coin } = req.body;
-  if (!coin || typeof coin !== 'string') {
-    return res.status(400).json({ error: "Eksik veya geçersiz 'coin' alanı" });
-  }
+            {/* COIN HEADER */}
+            <div style={{ background:`linear-gradient(135deg,${vc.bg},#0f172a)`, border:`1px solid ${vc.glow}`, borderRadius:16, padding:'24px 28px', marginBottom:20, display:'flex', alignItems:'center', gap:24, flexWrap:'wrap', boxShadow:`0 0 40px ${vc.glow}` }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:'#475569', marginBottom:4, fontWeight:600 }}>DEEP TRADE SCAN / CHARTOS</div>
+                <div style={{ fontSize:32, fontWeight:900, color:'#e2e8f0', marginBottom:4 }}>{data.coin}<span style={{ color:'#475569', fontSize:18 }}>/USDT</span></div>
+                <div style={{ fontSize:26, fontWeight:800, color:'#f1f5f9' }}>{data.price}</div>
+                <div style={{ fontSize:15, color:data.change24h?.startsWith('+')?'#34d399':'#f87171', fontWeight:700, marginTop:4 }}>{data.change24h} (24s)</div>
+                <div style={{ fontSize:12, color:'#475569', marginTop:4 }}>H: {data.high24h} | D: {data.low24h}</div>
+              </div>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:44, animation:'glow 2s ease infinite' }}>{vc.emoji}</div>
+                <div style={{ color:vc.color, fontWeight:900, fontSize:20, marginTop:4 }}>{vc.label}</div>
+                <div style={{ color:'#475569', fontSize:12, marginTop:2 }}>{data.bullSignals}🟢 {data.bearSignals}🔴</div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:160 }}>
+                {[
+                  ['Trend (Günlük)', data.trendDaily, data.trendDaily==='BULLISH'?'#34d399':data.trendDaily==='BEARISH'?'#f87171':'#f59e0b'],
+                  ['Trend (4s)', data.trend4h, data.trend4h==='BULLISH'?'#34d399':data.trend4h==='BEARISH'?'#f87171':'#f59e0b'],
+                  ['Wyckoff', WYCKOFF_TR[data.wyckoff?.phase]||data.wyckoff?.phase, '#94a3b8'],
+                ].map(([l,v,c])=>(
+                  <div key={l} style={{ display:'flex', justifyContent:'space-between', gap:12 }}>
+                    <span style={{ color:'#475569', fontSize:12 }}>{l}</span>
+                    <span style={{ color:c, fontSize:12, fontWeight:700 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-  const symbol = coin.toUpperCase().replace(/USDT?$/i, '').trim();
-  const geckoId = GECKO_MAP[symbol];
-  if (!geckoId) {
-    return res.status(400).json({
-      error: `Desteklenmeyen coin: ${symbol}`,
-      desteklenen: Object.keys(GECKO_MAP).filter(k => !['POL', 'POLYGON', 'RNDR'].includes(k)),
-    });
-  }
+            {/* TABS */}
+            <div style={{ display:'flex', gap:2, marginBottom:20, background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:4 }}>
+              {[['chartos','🔱 CHARTOS'],['levels','📐 Seviyeler'],['technical','📊 Teknik'],['market','🌍 Piyasa']].map(([id,label])=>(
+                <button key={id} className="tab-btn" onClick={()=>setTab(id)}
+                  style={{ flex:1, padding:'10px 8px', background:tab===id?'#1e293b':'transparent', borderRadius:8, color:tab===id?'#60a5fa':'#475569', fontSize:13, fontWeight:tab===id?700:500, transition:'all .2s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-  try {
-    // ── Parallel data fetch ──────────────────────────────────────────────────
-    const [coinRes, chartRes, fgRes] = await Promise.allSettled([
-      fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}?localization=false&tickers=false&community_data=false&developer_data=false`, { headers: { Accept: 'application/json' } }),
-      // Fetch 60 days so EMA-50 has enough data; we report as "30-day analysis"
-      fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=60&interval=daily`, { headers: { Accept: 'application/json' } }),
-      fetch('https://api.alternative.me/fng/?limit=1', { headers: { Accept: 'application/json' } }),
-    ]);
+            {/* TAB: CHARTOS */}
+            {tab==='chartos' && ch && (
+              <div style={{ display:'grid', gap:16 }}>
+                {/* Bias Header */}
+                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'20px 24px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
+                    <div>
+                      <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:6 }}>🔱 CHARTOS TANRISAL BIAS</div>
+                      <div style={{ fontSize:24, fontWeight:900, color: ch.htfBias?.includes('Boğa')?'#34d399':ch.htfBias?.includes('Ayı')?'#f87171':'#f59e0b' }}>
+                        {ch.htfBias}
+                      </div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:42, fontWeight:900, color:'#60a5fa' }}>{ch.biasPct}%</div>
+                      <div style={{ fontSize:11, color:'#475569' }}>Güven Skoru</div>
+                    </div>
+                  </div>
+                </div>
 
-    if (coinRes.status === 'rejected' || !coinRes.value?.ok) {
-      return res.status(502).json({ error: 'CoinGecko coin verisi alınamadı', detay: coinRes.reason?.message });
-    }
-    if (chartRes.status === 'rejected' || !chartRes.value?.ok) {
-      return res.status(502).json({ error: 'CoinGecko grafik verisi alınamadı', detay: chartRes.reason?.message });
-    }
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:16 }}>
+                  {/* Market Structure */}
+                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                    <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>📊 PİYASA YAPISI</div>
+                    {ch.marketStructure && Object.entries({
+                      'HTF Bias': ch.marketStructure.htfBias,
+                      'Son BOS/CHoCH': ch.marketStructure.lastBOS,
+                      'Order Block\'lar': ch.marketStructure.orderBlocks,
+                      'FVG / Imbalance': ch.marketStructure.fvg,
+                      'Likidite Havuzları': ch.marketStructure.liquidityPools,
+                    }).map(([k,v])=>v&&(
+                      <div key={k} style={{ marginBottom:10 }}>
+                        <div style={{ fontSize:10, color:'#475569', marginBottom:2 }}>{k}</div>
+                        <div style={{ fontSize:13, color:'#e2e8f0', lineHeight:1.5 }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
 
-    const coinData = await coinRes.value.json();
-    const chartData = await chartRes.value.json();
+                  {/* Key Levels */}
+                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                    <div style={{ fontSize:11, color:'#8b5cf6', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>🎯 ANA SEVİYELER</div>
+                    {ch.keyLevels && [
+                      ['Demand Zone (Alım)', ch.keyLevels.demandZone, '#34d399'],
+                      ['Supply Zone (Satış)', ch.keyLevels.supplyZone, '#f87171'],
+                      ['Kritik Likidite', ch.keyLevels.criticalLiquidity, '#f59e0b'],
+                      ['Geçersizleşme', ch.keyLevels.invalidation, '#94a3b8'],
+                    ].map(([l,v,c])=>v&&(
+                      <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
+                        <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                        <span style={{ color:c, fontWeight:700, fontSize:13 }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
 
-    let fearGreed = null;
-    if (fgRes.status === 'fulfilled' && fgRes.value?.ok) {
-      try {
-        const fgData = await fgRes.value.json();
-        if (fgData.data?.[0]) {
-          fearGreed = { value: parseInt(fgData.data[0].value, 10), label: fgData.data[0].value_classification };
-        }
-      } catch { /* ignore */ }
-    }
+                  {/* Scenarios */}
+                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                    <div style={{ fontSize:11, color:'#10b981', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>🎲 SENARYO ANALİZİ</div>
+                    {ch.scenarios && (
+                      <>
+                        <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.15)', borderRadius:8, padding:'12px 14px', marginBottom:10 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                            <span style={{ color:'#34d399', fontWeight:700, fontSize:13 }}>🟢 BOĞA</span>
+                            <span style={{ color:'#34d399', fontWeight:900 }}>%{ch.scenarios.bull?.pct}</span>
+                          </div>
+                          <div style={{ color:'#94a3b8', fontSize:12, lineHeight:1.5 }}>{ch.scenarios.bull?.desc}</div>
+                        </div>
+                        <div style={{ background:'rgba(248,113,113,0.06)', border:'1px solid rgba(248,113,113,0.15)', borderRadius:8, padding:'12px 14px' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                            <span style={{ color:'#f87171', fontWeight:700, fontSize:13 }}>🔴 AYI</span>
+                            <span style={{ color:'#f87171', fontWeight:900 }}>%{ch.scenarios.bear?.pct}</span>
+                          </div>
+                          <div style={{ color:'#94a3b8', fontSize:12, lineHeight:1.5 }}>{ch.scenarios.bear?.desc}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-    // ── Extract series ───────────────────────────────────────────────────────
-    const closes = chartData.prices.map(p => p[1]);
-    const volumes = chartData.total_volumes.map(v => v[1]);
+                  {/* God Setup */}
+                  {ch.setup && (
+                    <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                      <div style={{ fontSize:11, color:'#f59e0b', fontWeight:700, marginBottom:14, textTransform:'uppercase', letterSpacing:1 }}>⚡ TANRISAL SETUP</div>
+                      {[
+                        ['Giriş Bölgesi', ch.setup.entry, '#60a5fa'],
+                        ['Geçersizleşme', ch.setup.invalidation, '#f87171'],
+                        ['Hedef 1', ch.setup.tp1, '#34d399'],
+                        ['Hedef 2', ch.setup.tp2, '#10b981'],
+                        ['R:R Oranı', ch.setup.rr, '#f59e0b'],
+                      ].map(([l,v,c])=>v&&(
+                        <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
+                          <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                          <span style={{ color:c, fontWeight:700, fontSize:13 }}>{v}</span>
+                        </div>
+                      ))}
+                      {ch.setup.riskNote && (
+                        <div style={{ marginTop:10, padding:'8px 12px', background:'rgba(245,158,11,0.08)', borderRadius:6, color:'#f59e0b', fontSize:11 }}>
+                          ⚠️ {ch.setup.riskNote}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-    if (closes.length < 10) {
-      return res.status(502).json({ error: 'CoinGecko\'dan yetersiz geçmiş veri' });
-    }
+                {/* God Insight */}
+                {ch.godInsight && (
+                  <div style={{ background:'linear-gradient(135deg,rgba(59,130,246,0.08),rgba(139,92,246,0.08))', border:'1px solid rgba(139,92,246,0.2)', borderRadius:12, padding:'20px 24px' }}>
+                    <div style={{ fontSize:11, color:'#a78bfa', fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:1 }}>🔮 TANRISAL İÇGÖRÜ</div>
+                    <div style={{ color:'#c4b5fd', fontSize:14, lineHeight:1.8 }}>{ch.godInsight}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
-    // Synthetic OHLC from daily closes (±1.5% intraday estimate)
-    const highs = closes.map((c, i) => i > 0 ? Math.max(c, closes[i - 1]) * 1.012 : c * 1.012);
-    const lows = closes.map((c, i) => i > 0 ? Math.min(c, closes[i - 1]) * 0.988 : c * 0.988);
+            {/* TAB: LEVELS */}
+            {tab==='levels' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
+                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>DİRENÇ SEVİYELERİ</div>
+                  {data.resistances?.map((r,i)=>(
+                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
+                      <span style={{ color:'#64748b', fontSize:12 }}>R{i+1} Direnç</span>
+                      <span style={{ color:'#f87171', fontWeight:700 }}>{r}</span>
+                    </div>
+                  ))}
+                  <div style={{ padding:'10px 0', textAlign:'center', color:'#60a5fa', fontWeight:700, fontSize:14, borderTop:'1px solid #334155', borderBottom:'1px solid #334155', margin:'4px 0' }}>
+                    ●── {data.price} ──●
+                  </div>
+                  {data.supports?.map((s,i)=>(
+                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
+                      <span style={{ color:'#64748b', fontSize:12 }}>D{i+1} Destek</span>
+                      <span style={{ color:'#34d399', fontWeight:700 }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>WYCKOFF ANALİZİ</div>
+                  {[
+                    ['Faz', WYCKOFF_TR[data.wyckoff?.phase]||data.wyckoff?.phase, '#60a5fa'],
+                    ['Sinyal', data.wyckoff?.signal, data.wyckoff?.signal==='BULLISH'?'#34d399':'#f87171'],
+                    ['30g Trend', `${data.wyckoff?.t30pct}%`, data.wyckoff?.t30pct>=0?'#34d399':'#f87171'],
+                  ].map(([l,v,c])=>(
+                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #1e293b' }}>
+                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                      <span style={{ color:c, fontWeight:700 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-    // Current market data
-    const md = coinData.market_data;
-    const price = md.current_price.usd;
-    const change24h = md.price_change_percentage_24h ?? 0;
-    const high24h = md.high_24h.usd;
-    const low24h = md.low_24h.usd;
-    const vol24h = md.total_volume.usd;
-    const marketCap = md.market_cap.usd;
+            {/* TAB: TECHNICAL */}
+            {tab==='technical' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12 }}>
+                {[
+                  { title:'RSI (14)', items:[['Değer', data.rsi, data.rsi<35?'#34d399':data.rsi>65?'#f87171':'#f59e0b'],['Bölge', data.rsi<35?'Aşırı Satım':data.rsi>65?'Aşırı Alım':'Nötr']] },
+                  { title:'MACD', items:[['Trend', data.macdTrend, data.macdTrend==='YÜKSELİŞ'?'#34d399':'#f87171']] },
+                  { title:'Bollinger %B', items:[['Değer', data.bbPct, data.bbPct<0.2?'#34d399':data.bbPct>0.8?'#f87171':'#f59e0b'],['Konum', data.bbPct<0.2?'Alt Band':data.bbPct>0.8?'Üst Band':'Orta']] },
+                  { title:'EMA Yapısı', items:[['EMA 8', data.ema?.e8?.toFixed(6)],['EMA 21', data.ema?.e21?.toFixed(6)],['EMA 50', data.ema?.e50?.toFixed(6)],['Hizalama', data.trendDaily, data.trendDaily==='BULLISH'?'#34d399':'#f87171']] },
+                ].map(({title,items})=>(
+                  <div key={title} style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'14px 16px' }}>
+                    <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:10 }}>{title}</div>
+                    {items.map(([l,v,c])=>(
+                      <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #1e293b' }}>
+                        <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                        <span style={{ color:c||'#e2e8f0', fontSize:12, fontWeight:600 }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
 
-    // ── Technical Indicators ─────────────────────────────────────────────────
-    const rsi = calcRSI(closes);
-    const macd = calcMACD(closes);
-    const bb = calcBollingerBands(closes);
-    const stoch = calcStochastic(highs, lows, closes);
-    const obv = calcOBV(closes, volumes);
-    const adx = calcADX(highs, lows, closes);
-    const vwap = calcVWAP(closes, volumes);
-    const ichimoku = calcIchimoku(highs, lows, closes);
+            {/* TAB: MARKET */}
+            {tab==='market' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:16 }}>
+                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>PİYASA VERİLERİ</div>
+                  {[
+                    ['Hacim (24s)', data.volume24h],
+                    ['Piyasa Değeri', data.marketCap],
+                    ['En Yüksek (24s)', data.high24h, '#34d399'],
+                    ['En Düşük (24s)', data.low24h, '#f87171'],
+                  ].map(([l,v,c])=>(
+                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1e293b' }}>
+                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                      <span style={{ color:c||'#e2e8f0', fontWeight:600, fontSize:13 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+                {data.fearGreed && (
+                  <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                    <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>KORKU & AÇGÖZLÜLÜK</div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:52, fontWeight:900, color:FG_COLOR(data.fearGreed.value) }}>{data.fearGreed.value}</div>
+                      <div style={{ color:'#64748b', fontSize:14, marginBottom:12 }}>{data.fearGreed.label}</div>
+                      <div style={{ background:'#1e293b', borderRadius:8, height:8, overflow:'hidden' }}>
+                        <div style={{ width:`${data.fearGreed.value}%`, height:'100%', background:'linear-gradient(90deg,#f87171,#f59e0b,#34d399)', transition:'width 1s' }}/>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, color:'#475569' }}>
+                        <span>Aşırı Korku</span><span>Aşırı Açgözlülük</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div style={{ background:'#0f172a', border:'1px solid #1e293b', borderRadius:12, padding:'18px 20px' }}>
+                  <div style={{ fontSize:11, color:'#475569', fontWeight:700, marginBottom:14 }}>SİSTEM BİLGİSİ</div>
+                  {[
+                    ['Motor', data._meta?.engine],
+                    ['AI Modeli', data._meta?.aiModel],
+                    ['Token Tahmini', data._meta?.tokenEst],
+                    ['Cache TTL', data._meta?.cacheTTL],
+                    ['Desteklenen', `${data._meta?.supportedCoins} coin`],
+                  ].map(([l,v])=>(
+                    <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #1e293b' }}>
+                      <span style={{ color:'#64748b', fontSize:12 }}>{l}</span>
+                      <span style={{ color:'#94a3b8', fontSize:12 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-    const ema8arr = calcEMA(closes, 8);
-    const ema21arr = calcEMA(closes, 21);
-    const ema50arr = calcEMA(closes, 50);
-    const ema8 = ema8arr[ema8arr.length - 1];
-    const ema21 = ema21arr[ema21arr.length - 1];
-    const ema50 = ema50arr[ema50arr.length - 1];
+          </div>
+        )}
 
-    // ── Derived analysis ─────────────────────────────────────────────────────
-    const srLevels = calcSupportResistance(closes, highs, lows);
-    const wyckoff = detectWyckoff(closes, volumes);
-    const manipulation = detectManipulation(closes, highs, lows, volumes);
+        {!data && !loading && !error && (
+          <div style={{ textAlign:'center', padding:'60px 20px', color:'#1e293b' }}>
+            <div style={{ fontSize:64, marginBottom:16 }}>🔱</div>
+            <div style={{ fontSize:18, color:'#334155' }}>Coin seç veya yaz, CHARTOS analiz etsin</div>
+            <div style={{ fontSize:13, color:'#1e293b', marginTop:8 }}>250 kripto para destekleniyor</div>
+          </div>
+        )}
+      </div>
 
-    const indicators = { rsi, macd, bb, stoch, obv, adx, vwap, ichimoku, price, ema8, ema21, ema50, wyckoff };
-    const signals = countBullBearSignals(indicators);
-    const tradePlan = calcTradePlan(price, srLevels.supports, srLevels.resistances, indicators, signals);
-
-    // ── 16-layer scores ──────────────────────────────────────────────────────
-    const layerScores = calc16LayerScores(indicators, signals, wyckoff, manipulation, srLevels, fearGreed);
-    const overallScore = parseFloat((layerScores.reduce((a, b) => a + b, 0) / layerScores.length * 10).toFixed(1));
-
-    // ── Verdict ──────────────────────────────────────────────────────────────
-    const netSignal = signals.bull - signals.bear;
-    let verdict, confidence;
-    if (netSignal >= 5) { verdict = 'STRONG_BUY'; confidence = Math.min(95, 82 + netSignal); }
-    else if (netSignal >= 2) { verdict = 'BUY'; confidence = Math.min(90, 65 + netSignal * 4); }
-    else if (netSignal <= -5) { verdict = 'STRONG_SELL'; confidence = Math.min(95, 82 + Math.abs(netSignal)); }
-    else if (netSignal <= -2) { verdict = 'SELL'; confidence = Math.min(90, 65 + Math.abs(netSignal) * 4); }
-    else { verdict = 'NEUTRAL'; confidence = 45 + Math.abs(netSignal) * 5; }
-
-    // ── Trend labels ─────────────────────────────────────────────────────────
-    const trend_daily = ema8 > ema50 ? 'BULLISH' : ema8 < ema50 ? 'BEARISH' : 'NEUTRAL';
-    const trend_4h = ema8 > ema21 ? 'BULLISH' : ema8 < ema21 ? 'BEARISH' : 'NEUTRAL';
-    const trend_1h = macd.histogram > 0 ? 'BULLISH' : macd.histogram < 0 ? 'BEARISH' : 'NEUTRAL';
-    const trend_15m = stoch.k > stoch.d ? 'BULLISH' : stoch.k < stoch.d ? 'BEARISH' : 'NEUTRAL';
-
-    // ── AI Commentary ────────────────────────────────────────────────────────
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    const ema_trend = ema8 > ema21 && ema21 > ema50 ? 'Yükseliş (8>21>50)' : ema8 < ema21 && ema21 < ema50 ? 'Düşüş (8<21<50)' : 'Karışık';
-
-    const WYCKOFF_TR = {
-      ACCUMULATION: 'Birikim',
-      MARKUP: 'Yükseliş (Markup)',
-      DISTRIBUTION: 'Dağıtım',
-      MARKDOWN: 'Düşüş (Markdown)',
-      RE_ACCUMULATION: 'Yeniden Birikim',
-    };
-    const VERDICT_TR = {
-      STRONG_BUY: 'Güçlü Al',
-      BUY: 'Al',
-      NEUTRAL: 'Nötr',
-      SELL: 'Sat',
-      STRONG_SELL: 'Güçlü Sat',
-    };
-    const FG_LABEL_TR = {
-      'Extreme Fear': 'Aşırı Korku',
-      'Fear': 'Korku',
-      'Neutral': 'Nötr',
-      'Greed': 'Açgözlülük',
-      'Extreme Greed': 'Aşırı Açgözlülük',
-    };
-
-    const summaryForAI = {
-      coin: symbol,
-      price: price >= 1 ? price.toFixed(4) : price.toFixed(8),
-      rsi,
-      macd_trend: macd.histogram > 0 ? 'Yükseliş' : 'Düşüş',
-      bb_pct_b: bb.percent_b,
-      ema_trend,
-      vwap_status: price > vwap ? 'VWAP Üstünde' : 'VWAP Altında',
-      wyckoff_phase: WYCKOFF_TR[wyckoff.phase] || wyckoff.phase,
-      adx: adx.adx,
-      bull: signals.bull,
-      bear: signals.bear,
-      fear_greed: fearGreed ? `${fearGreed.value} (${FG_LABEL_TR[fearGreed.label] || fearGreed.label})` : 'Bilinmiyor',
-      manip_score: manipulation.score,
-      overall_score: overallScore,
-      verdict: VERDICT_TR[verdict] || verdict,
-    };
-
-    let aiCommentary = await getAICommentary(summaryForAI, apiKey);
-    const aiUsed = !!aiCommentary;
-    if (!aiCommentary) aiCommentary = generateFallbackCommentary(summaryForAI);
-
-    // ── Format S/R ───────────────────────────────────────────────────────────
-    const fmtArr = (arr) => arr.map(v => fmt(v));
-
-    // ── Compose response ─────────────────────────────────────────────────────
-    return res.status(200).json({
-      // Market data
-      coin: symbol,
-      gecko_id: geckoId,
-      current_price: fmt(price),
-      price_raw: price,
-      price_change_24h: `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}%`,
-      high_24h: fmt(high24h),
-      low_24h: fmt(low24h),
-      volume_24h: vol24h >= 1e9 ? `$${(vol24h / 1e9).toFixed(3)}B` : `$${(vol24h / 1e6).toFixed(2)}M`,
-      market_cap: marketCap >= 1e9 ? `$${(marketCap / 1e9).toFixed(3)}B` : `$${(marketCap / 1e6).toFixed(2)}M`,
-      timestamp: new Date().toISOString(),
-
-      // Verdict
-      overall_verdict: verdict,
-      confidence_score: confidence,
-      risk_level: manipulation.risk,
-      overall_score: overallScore,
-      manipulation_score: manipulation.score,
-      bullish_signals_count: signals.bull,
-      bearish_signals_count: signals.bear,
-
-      // Trends
-      trend_daily,
-      trend_4h,
-      trend_1h,
-      trend_15m,
-
-      // Layers
-      layer_scores: layerScores,
-
-      // S/R
-      supports: fmtArr(srLevels.supports),
-      resistances: fmtArr(srLevels.resistances),
-      supports_raw: srLevels.supports,
-      resistances_raw: srLevels.resistances,
-
-      // Trade plan
-      entry_sniper: fmt(tradePlan.entry),
-      stop_loss: fmt(tradePlan.stop_loss),
-      tp1: fmt(tradePlan.tp1),
-      tp2: fmt(tradePlan.tp2),
-      tp3: fmt(tradePlan.tp3),
-      leverage: tradePlan.leverage,
-      risk_reward: tradePlan.risk_reward,
-      risk_pct: tradePlan.risk_pct,
-      position_size: tradePlan.position_size,
-      trade_direction: tradePlan.direction,
-
-      // External data
-      fear_greed_index: fearGreed,
-
-      // All technical indicators
-      technical_indicators: {
-        rsi_14: rsi,
-        macd: {
-          line: macd.line,
-          signal_line: macd.signal_line,
-          histogram: macd.histogram,
-          trend: macd.histogram > 0 ? 'BULLISH' : 'BEARISH',
-        },
-        ema: {
-          ema_8: parseFloat(ema8.toFixed(8)),
-          ema_21: parseFloat(ema21.toFixed(8)),
-          ema_50: parseFloat(ema50.toFixed(8)),
-          alignment: trend_daily,
-        },
-        bollinger_bands: bb,
-        stochastic: stoch,
-        obv,
-        adx,
-        vwap: parseFloat(vwap.toFixed(8)),
-        ichimoku,
-      },
-
-      // Structural analysis
-      wyckoff,
-      manipulation_detection: manipulation,
-      trade_plan: tradePlan,
-
-      // AI commentary
-      ai_commentary: aiCommentary.summary || '',
-      warnings: aiCommentary.warnings || [],
-      ai_bull_scenario: aiCommentary.bullScenario || '',
-      ai_bear_scenario: aiCommentary.bearScenario || '',
-      ai_mm_move: aiCommentary.mmMove || '',
-      ai_onchain_summary: aiCommentary.onchain_summary || '',
-      ai_orderflow_summary: aiCommentary.orderflow_summary || '',
-      ai_used: aiUsed,
-
-      // Meta
-      _meta: {
-        data_source: 'CoinGecko API + Alternative.me',
-        analysis_type: 'HYBRID_CODE_PLUS_AI',
-        candles_analyzed: closes.length,
-        ai_model: aiUsed ? 'claude-haiku-4-5-20251001' : 'yedek-yorum',
-        ai_max_tokens: 500,
-        supported_coins: Object.keys(GECKO_MAP).filter(k => !['POL', 'POLYGON', 'RNDR'].includes(k)).length,
-      },
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Dahili sunucu hatası', mesaj: err.message });
-  }
+      <footer style={{ textAlign:'center', padding:'32px 24px', color:'#1e293b', fontSize:11, borderTop:'1px solid #0f172a', marginTop:40 }}>
+        Deep Trade Scan • CHARTOS Engine • {new Date().getFullYear()}<br/>
+        <span style={{ color:'#1e293b' }}>Bu platform yatırım tavsiyesi vermez. Kripto piyasaları yüksek risk içerir.</span>
+      </footer>
+    </div>
+  );
 }
