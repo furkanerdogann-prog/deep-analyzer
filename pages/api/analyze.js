@@ -1,23 +1,47 @@
-// pages/api/analyze.js — CHARTOS Engine v7.2 (Gerçek Zamanlı Fiyat)
+// pages/api/analyze.js — CHARTOS Engine v7.3 (Upstash Redis Cache)
 
-const cache = new Map();
-const CACHE_TTL = 60 * 60 * 1000;
+const CACHE_TTL = 60 * 60; // 1 saat (saniye cinsinden)
 
-function getCache(k) {
-  const e = cache.get(k);
-  if (!e) return null;
-  if (Date.now() - e.ts > CACHE_TTL) { cache.delete(k); return null; }
-  return e.data;
+// Upstash Redis helpers
+async function redisGet(key) {
+  try {
+    const url = process.env.KV_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN;
+    if (!url || !token) return null;
+    const r = await fetch(`${url}/get/${key}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const d = await r.json();
+    return d.result ? JSON.parse(d.result) : null;
+  } catch { return null; }
 }
-function setCache(k, data) {
-  if (cache.size > 200) {
-    const old = [...cache.entries()].sort((a,b) => a[1].ts - b[1].ts)[0];
-    if (old) cache.delete(old[0]);
-  }
-  cache.set(k, { data, ts: Date.now() });
+
+async function redisSet(key, value, ttl) {
+  try {
+    const url = process.env.KV_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN;
+    if (!url || !token) return;
+    await fetch(`${url}/set/${key}/${encodeURIComponent(JSON.stringify(value))}?ex=${ttl}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch {}
 }
 
-// CoinGecko ID haritası
+async function redisPush(key, value, maxLen = 10) {
+  try {
+    const url = process.env.KV_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN;
+    if (!url || !token) return;
+    await fetch(`${url}/lpush/${key}/${encodeURIComponent(JSON.stringify(value))}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    await fetch(`${url}/ltrim/${key}/0/${maxLen - 1}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch {}
+}
+
+// CoinGecko ID haritası (bellek cache)
 let geckoMap = null;
 let geckoMapTs = 0;
 
@@ -91,16 +115,17 @@ MUTLAKA verilen gerçek fiyatı kullan, asla tahmin etme.
 
 ÇIKTIYI MUTLAKA BU FORMATTA VER:
 
-🔱 DEEP SCANNER MODU - CANLI ANALİZ AKTİF 🔱
+🔱 CHARTOS TANRI MODU - CANLI ANALİZ AKTİF 🔱
 
 Varlık: [coin adı ve parite]
 Güncel Fiyat: [VERİLEN GERÇEK FİYATI KULLAN]
 24s Değişim: [verilen değişim]
-Ana Timeframe: 1G (Günlük) 4S (Saatlik)
-DERİN ANALİZ Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
+Ana Timeframe: 1G (Günlük)
+Tanrısal Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
 
 PİYASA YAPISI (Market Structure):
 • HTF (1W-1D) Bias & Son Değişim:
+• Mevcut BOS / CHOCH / MSS:
 • Unmitigated Order Block'lar:
 • Fair Value Gap / Imbalance'lar:
 • Liquidity Pool'lar (Equal Highs/Lows, Stop Hunt alanları):
@@ -137,7 +162,10 @@ export default async function handler(req, res) {
   if (!coin) return res.status(400).json({ error: 'Coin gerekli' });
 
   const symbol = coin.toUpperCase().trim();
-  const cached = getCache(symbol);
+
+  // Redis cache kontrol
+  const cacheKey = `chartos:${symbol}`;
+  const cached = await redisGet(cacheKey);
   if (cached) return res.status(200).json({ ...cached, _cached: true });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -149,7 +177,6 @@ export default async function handler(req, res) {
   let priceData = null;
   if (coinInfo) priceData = await getLivePrice(coinInfo.id);
 
-  // Fiyat verisi hazırla
   const priceStr = priceData
     ? `GERÇEK ZAMANLI VERİ (CoinGecko):
 - Coin: ${symbol} (${coinInfo?.name || symbol})
@@ -178,8 +205,20 @@ export default async function handler(req, res) {
     if (!response.ok) { const err = await response.json(); return res.status(502).json({ error: 'AI hatası', detail: err }); }
     const data = await response.json();
     const analysis = data.content?.[0]?.text || '';
-    const result = { coin: symbol, analysis, price: priceData ? fmtPrice(priceData.price) : null, timestamp: new Date().toISOString() };
-    setCache(symbol, result);
+
+    const result = {
+      coin: symbol,
+      analysis,
+      price: priceData ? fmtPrice(priceData.price) : null,
+      timestamp: new Date().toISOString()
+    };
+
+    // Redis'e kaydet (1 saat TTL)
+    await redisSet(cacheKey, result, CACHE_TTL);
+
+    // Son analizler listesine ekle
+    await redisPush('chartos:recent', { coin: symbol, time: new Date().toLocaleTimeString('tr-TR'), price: result.price }, 10);
+
     return res.status(200).json(result);
   } catch (e) {
     return res.status(500).json({ error: 'Sunucu hatası', detail: e.message });
