@@ -1,7 +1,7 @@
 // pages/api/analyze.js — CHARTOS Engine v7.2 (Gerçek Zamanlı Fiyat)
 
 const cache = new Map();
-const CACHE_TTL = 20 * 60 * 1000;
+const CACHE_TTL = 60 * 60 * 1000;
 
 function getCache(k) {
   const e = cache.get(k);
