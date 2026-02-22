@@ -91,17 +91,16 @@ MUTLAKA verilen gerçek fiyatı kullan, asla tahmin etme.
 
 ÇIKTIYI MUTLAKA BU FORMATTA VER:
 
-🔱 CHARTOS TANRI MODU - CANLI ANALİZ AKTİF 🔱
+🔱 DEEP SCANNER MODU - CANLI ANALİZ AKTİF 🔱
 
 Varlık: [coin adı ve parite]
 Güncel Fiyat: [VERİLEN GERÇEK FİYATI KULLAN]
 24s Değişim: [verilen değişim]
-Ana Timeframe: 1G (Günlük)
-Tanrısal Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
+Ana Timeframe: 1G (Günlük) 4S (Saatlik)
+DERİN ANALİZ Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
 
 PİYASA YAPISI (Market Structure):
 • HTF (1W-1D) Bias & Son Değişim:
-• Mevcut BOS / CHOCH / MSS:
 • Unmitigated Order Block'lar:
 • Fair Value Gap / Imbalance'lar:
 • Liquidity Pool'lar (Equal Highs/Lows, Stop Hunt alanları):
