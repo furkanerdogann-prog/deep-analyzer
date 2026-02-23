@@ -2,6 +2,15 @@
   "functions": {
     "pages/api/analyze.js": {
       "maxDuration": 60
+    },
+    "pages/api/telegram-bot.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/telegram-bot?key=chartos-secret-2024",
+      "schedule": "0 */4 * * *"
+    }
+  ]
 }

@@ -1,0 +1,15 @@
+name: Telegram Otomatik Analiz
+on:
+  schedule:
+    - cron: '0 6 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+jobs:
+  send-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Analiz Gonder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl "https://deeptradescan.com/api/telegram-bot?key=${CRON_SECRET}"
