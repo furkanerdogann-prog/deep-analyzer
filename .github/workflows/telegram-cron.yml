@@ -1,0 +1,16 @@
+name: Telegram Sinyal
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sinyal Gonder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          COINS=("BTC" "ETH" "SOL" "XRP")
+          COIN=${COINS[$RANDOM % ${#COINS[@]}]}
+          curl "https://deeptradescan.com/api/telegram-bot?key=${CRON_SECRET}&coin=${COIN}"
