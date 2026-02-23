@@ -32,57 +32,79 @@ function fgLabel(v){
   return'🟢 Aşırı Açgözlülük';
 }
 
-function cleanMarkdown(text) {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/#{1,6}\s/g, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .trim();
+function cleanMd(text) {
+  return text.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1').replace(/#{1,6}\s/g,'').trim();
 }
 
-function extractSignal(analysis, coin, price, fg) {
-  if(!analysis) return null;
-  const lines = analysis.split('\n').map(l => cleanMarkdown(l.trim())).filter(Boolean);
-  
-  // Kritik seviyeleri bul
-  let giris = '', stop = '', hedef1 = '', hedef2 = '', hedef3 = '', rr = '', bias = '';
-  
+function extractVal(lines, keywords) {
   for(const line of lines) {
-    const l = line.toLowerCase();
-    if(l.includes('limit order') && !giris) giris = line.replace(/.*limit order[:\s]*/i,'').split('(')[0].trim();
-    if((l.includes('hard stop') || l.includes('stop loss')) && !stop) stop = line.replace(/.*hard stop[:\s]*/i,'').replace(/.*stop loss[:\s]*/i,'').split('(')[0].trim();
-    if(l.includes('hedef 1') && !hedef1) hedef1 = line.replace(/.*hedef 1[:\s]*/i,'').split('(')[0].trim();
-    if(l.includes('hedef 2') && !hedef2) hedef2 = line.replace(/.*hedef 2[:\s]*/i,'').split('(')[0].trim();
-    if(l.includes('hedef 3') && !hedef3) hedef3 = line.replace(/.*hedef 3[:\s]*/i,'').split('(')[0].trim();
-    if(l.includes('optimal') && l.includes('1:') && !rr) rr = line.match(/1:\d+\.?\d*/)?.[0] || '';
-    if((l.includes('bias') || l.includes('yön')) && !bias) {
-      if(l.includes('boğa')||l.includes('bull')||l.includes('yukari')) bias = '🟢 BOĞA';
-      else if(l.includes('ayı')||l.includes('bear')||l.includes('aşağı')) bias = '🔴 AYI';
-      else bias = '🟡 NÖTR';
+    const cl = cleanMd(line);
+    const ll = cl.toLowerCase();
+    if(keywords.some(k => ll.includes(k.toLowerCase()))) {
+      // Dolar değeri bul
+      const match = cl.match(/\$[\d,]+(?:\.\d+)?(?:\s*[-–]\s*\$[\d,]+(?:\.\d+)?)?/);
+      if(match) return match[0];
     }
   }
+  return '';
+}
 
-  if(!bias) bias = price?.change24h >= 0 ? '🟢 BOĞA' : '🔴 AYI';
+function extractBias(lines) {
+  for(const line of lines) {
+    const cl = cleanMd(line).toLowerCase();
+    if(cl.includes('bias') || cl.includes('yön') || cl.includes('tanrısal')) {
+      if(cl.includes('boğa')||cl.includes('bull')||cl.includes('yukari')||cl.includes('yukarı')) return '🟢 BOĞA';
+      if(cl.includes('ayı')||cl.includes('bear')||cl.includes('aşağı')) return '🔴 AYI';
+    }
+  }
+  return null;
+}
 
+function extractRR(lines) {
+  for(const line of lines) {
+    const cl = cleanMd(line);
+    if(cl.toLowerCase().includes('optimal')) {
+      const m = cl.match(/1:\d+\.?\d*/);
+      if(m) return m[0];
+    }
+  }
+  // fallback - herhangi bir R:R
+  for(const line of lines) {
+    const m = cleanMd(line).match(/1:\d+\.?\d*/);
+    if(m) return m[0];
+  }
+  return '';
+}
+
+function buildSignal(analysis, coin, price, fg) {
+  if(!analysis) return null;
+  const lines = analysis.split('\n').filter(l => l.trim());
+
+  const giris = extractVal(lines, ['limit order','market order','giriş bölgesi','giriş:','entry']);
+  const stop  = extractVal(lines, ['hard stop','stop loss','invalidation','stop:']);
+  const h1    = extractVal(lines, ['hedef 1','target 1','tp1','hedef1']);
+  const h2    = extractVal(lines, ['hedef 2','target 2','tp2','hedef2']);
+  const h3    = extractVal(lines, ['hedef 3','target 3','tp3','hedef3']);
+  const rr    = extractRR(lines);
+  const bias  = extractBias(lines) || (price?.change24h >= 0 ? '🟢 BOĞA' : '🔴 AYI');
   const change = price?.change24h;
   const changeEmoji = change >= 0 ? '📈' : '📉';
 
   return `🔱 CHARTOS SİNYAL | $${coin}/USDT
 ━━━━━━━━━━━━━━━━━━━━━
-💰 Fiyat: ${fmtPrice(price?.price)} ${changeEmoji} ${change}%
+💰 Fiyat: ${fmtPrice(price?.price)} ${changeEmoji} %${change}
 📊 24s: ${fmtPrice(price?.low)} — ${fmtPrice(price?.high)}
 🧠 Bias: ${bias}
 😱 F&G: ${fg?.value}/100 ${fgLabel(fg?.value)}
 ━━━━━━━━━━━━━━━━━━━━━
-${giris ? `📍 Giriş: ${giris}` : ''}
-${stop ? `🛑 Stop: ${stop}` : ''}
-${hedef1 ? `🎯 Hedef 1: ${hedef1}` : ''}
-${hedef2 ? `🎯 Hedef 2: ${hedef2}` : ''}
-${hedef3 ? `🎯 Hedef 3: ${hedef3}` : ''}
+📍 Giriş: ${giris || 'Analiz içinde'}
+🛑 Stop: ${stop || 'Analiz içinde'}
+🎯 Hedef 1: ${h1 || '-'}
+🎯 Hedef 2: ${h2 || '-'}
+🎯 Hedef 3: ${h3 || '-'}
 ${rr ? `⚡ R:R → ${rr}` : ''}
 ━━━━━━━━━━━━━━━━━━━━━
-⚠️ Bu bir finansal tavsiye değildir.
+⚠️ Finansal tavsiye değildir.
 🌐 deeptradescan.com
 #${coin} #Kripto #CHARTOS #TeknikAnaliz`;
 }
@@ -90,7 +112,7 @@ ${rr ? `⚡ R:R → ${rr}` : ''}
 let coinIndex = 0;
 
 export default async function handler(req, res) {
-  const secret = process.env.CRON_SECRET || 'chartos-secret-2024';
+  const secret = process.env.CRON_SECRET||'chartos-secret-2024';
   if(req.query.key !== secret) return res.status(401).json({error:'Yetkisiz'});
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if(!botToken) return res.status(500).json({error:'Bot token eksik'});
@@ -108,7 +130,7 @@ export default async function handler(req, res) {
     ]);
 
     const analyzeData = await analyzeRes.json();
-    const message = extractSignal(analyzeData.analysis, coin, priceData, fgData);
+    const message = buildSignal(analyzeData.analysis, coin, priceData, fgData);
     if(!message) throw new Error('Sinyal oluşturulamadı');
 
     const tg = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{
