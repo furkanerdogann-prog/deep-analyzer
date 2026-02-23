@@ -41,7 +41,6 @@ function extractVal(lines, keywords) {
     const cl = cleanMd(line);
     const ll = cl.toLowerCase();
     if(keywords.some(k => ll.includes(k.toLowerCase()))) {
-      // Dolar değeri bul
       const match = cl.match(/\$[\d,]+(?:\.\d+)?(?:\s*[-–]\s*\$[\d,]+(?:\.\d+)?)?/);
       if(match) return match[0];
     }
@@ -52,8 +51,8 @@ function extractVal(lines, keywords) {
 function extractBias(lines) {
   for(const line of lines) {
     const cl = cleanMd(line).toLowerCase();
-    if(cl.includes('bias') || cl.includes('yön') || cl.includes('tanrısal')) {
-      if(cl.includes('boğa')||cl.includes('bull')||cl.includes('yukari')||cl.includes('yukarı')) return '🟢 BOĞA';
+    if(cl.includes('bias')||cl.includes('yön')||cl.includes('tanrısal')) {
+      if(cl.includes('boğa')||cl.includes('bull')||cl.includes('yukarı')) return '🟢 BOĞA';
       if(cl.includes('ayı')||cl.includes('bear')||cl.includes('aşağı')) return '🔴 AYI';
     }
   }
@@ -68,7 +67,6 @@ function extractRR(lines) {
       if(m) return m[0];
     }
   }
-  // fallback - herhangi bir R:R
   for(const line of lines) {
     const m = cleanMd(line).match(/1:\d+\.?\d*/);
     if(m) return m[0];
@@ -79,16 +77,15 @@ function extractRR(lines) {
 function buildSignal(analysis, coin, price, fg) {
   if(!analysis) return null;
   const lines = analysis.split('\n').filter(l => l.trim());
-
   const giris = extractVal(lines, ['limit order','market order','giriş bölgesi','giriş:','entry']);
   const stop  = extractVal(lines, ['hard stop','stop loss','invalidation','stop:']);
   const h1    = extractVal(lines, ['hedef 1','target 1','tp1','hedef1']);
   const h2    = extractVal(lines, ['hedef 2','target 2','tp2','hedef2']);
   const h3    = extractVal(lines, ['hedef 3','target 3','tp3','hedef3']);
   const rr    = extractRR(lines);
-  const bias  = extractBias(lines) || (price?.change24h >= 0 ? '🟢 BOĞA' : '🔴 AYI');
+  const bias  = extractBias(lines)||(price?.change24h>=0?'🟢 BOĞA':'🔴 AYI');
   const change = price?.change24h;
-  const changeEmoji = change >= 0 ? '📈' : '📉';
+  const changeEmoji = change>=0?'📈':'📉';
 
   return `🔱 CHARTOS SİNYAL | $${coin}/USDT
 ━━━━━━━━━━━━━━━━━━━━━
@@ -97,12 +94,12 @@ function buildSignal(analysis, coin, price, fg) {
 🧠 Bias: ${bias}
 😱 F&G: ${fg?.value}/100 ${fgLabel(fg?.value)}
 ━━━━━━━━━━━━━━━━━━━━━
-📍 Giriş: ${giris || 'Analiz içinde'}
-🛑 Stop: ${stop || 'Analiz içinde'}
-🎯 Hedef 1: ${h1 || '-'}
-🎯 Hedef 2: ${h2 || '-'}
-🎯 Hedef 3: ${h3 || '-'}
-${rr ? `⚡ R:R → ${rr}` : ''}
+📍 Giriş: ${giris||'Analiz içinde'}
+🛑 Stop: ${stop||'Analiz içinde'}
+🎯 Hedef 1: ${h1||'-'}
+🎯 Hedef 2: ${h2||'-'}
+🎯 Hedef 3: ${h3||'-'}
+${rr?`⚡ R:R → ${rr}`:''}
 ━━━━━━━━━━━━━━━━━━━━━
 ⚠️ Finansal tavsiye değildir.
 🌐 deeptradescan.com
@@ -113,33 +110,22 @@ let coinIndex = 0;
 
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET||'chartos-secret-2024';
-  if(req.query.key !== secret) return res.status(401).json({error:'Yetkisiz'});
+  if(req.query.key!==secret) return res.status(401).json({error:'Yetkisiz'});
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if(!botToken) return res.status(500).json({error:'Bot token eksik'});
-
-  const coin = req.query.coin || COINS[coinIndex++ % COINS.length];
-
+  const coin = req.query.coin||COINS[coinIndex++%COINS.length];
   try {
-    const [priceData, fgData, analyzeRes] = await Promise.all([
+    const [priceData,fgData,analyzeRes] = await Promise.all([
       getLivePrice(coin),
       getFearGreed(),
-      fetch('https://deeptradescan.com/api/analyze',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({coin})
-      })
+      fetch('https://deeptradescan.com/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coin})})
     ]);
-
     const analyzeData = await analyzeRes.json();
-    const message = buildSignal(analyzeData.analysis, coin, priceData, fgData);
+    const message = buildSignal(analyzeData.analysis,coin,priceData,fgData);
     if(!message) throw new Error('Sinyal oluşturulamadı');
-
-    const tg = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:CHANNEL,text:message})
-    });
+    const tg = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHANNEL,text:message})});
     const tgData = await tg.json();
     if(!tgData.ok) throw new Error(tgData.description);
-
     return res.status(200).json({success:true,coin,message});
   } catch(e) {
     return res.status(500).json({error:e.message});
