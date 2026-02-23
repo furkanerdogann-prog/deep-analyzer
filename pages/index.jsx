@@ -196,13 +196,7 @@ export default function Home() {
       <div style={{padding:'0 0 60px'}}>
 
         {/* TradingView */}
-        {selected && (
-          <div style={{height:250,background:'#080C14',borderBottom:'1px solid #1A2332'}}>
-            <iframe key={selected}
-              src={`https://s.tradingview.com/widgetembed/?frameElementId=tv&symbol=BINANCE:${selected}USDT&interval=D&hidesidetoolbar=1&saveimage=0&toolbarbg=080C14&theme=dark&style=1&timezone=Europe%2FIstanbul&locale=tr&withdateranges=0`}
-              style={{width:'100%',height:'100%',border:'none'}} allowTransparency allowFullScreen/>
-          </div>
-        )}
+        
 
         <div style={{padding:'16px 14px'}}>
 
