@@ -75,6 +75,22 @@ function extractRR(lines) {
 }
 
 function buildSignal(analysis, coin, price, fg) {
+  function buildTweet(analysis, coin, price, fg) {
+  const lines = analysis.split('\n').filter(l => l.trim());
+  const h1 = extractVal(lines, ['hedef 1','target 1','tp1']);
+  const stop = extractVal(lines, ['hard stop','stop loss','stop:']);
+  const bias = extractBias(lines)||(price?.change24h>=0?'🟢':'🔴');
+  const rr = extractRR(lines);
+  const change = price?.change24h;
+
+  return `🔱 $${coin} CHARTOS SİNYAL
+${bias} ${fmtPrice(price?.price)} (%${change})
+🛑 Stop: ${stop||'-'} 🎯 Hedef: ${h1||'-'}
+${rr?`⚡ R:R ${rr}`:''}
+😱 F&G: ${fg?.value}/100
+deeptradescan.com
+#${coin} #Kripto #CHARTOS`;
+}
   if(!analysis) return null;
   const lines = analysis.split('\n').filter(l => l.trim());
   const giris = extractVal(lines, ['limit order','market order','giriş bölgesi','giriş:','entry']);
@@ -126,7 +142,12 @@ export default async function handler(req, res) {
     const tg = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHANNEL,text:message})});
     const tgData = await tg.json();
     if(!tgData.ok) throw new Error(tgData.description);
-    return res.status(200).json({success:true,coin,message});
+    return res.status(200).json({
+  success:true,
+  coin,
+  message,
+  tweet: buildTweet(analyzeData.analysis,coin,priceData,fgData)
+});
   } catch(e) {
     return res.status(500).json({error:e.message});
   }
