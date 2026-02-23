@@ -116,8 +116,8 @@ export default function Home() {
         {!coin && !loading && (
           <div style={{textAlign:'center',paddingTop:40}}>
             <div style={{fontSize:56,marginBottom:16}}>🔱</div>
-            <div style={{fontSize:20,fontWeight:900,marginBottom:8,background:'linear-gradient(135deg,#60a5fa,#a78bfa)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>CHARTOS TANRI MODU</div>
-            <div style={{fontSize:13,color:'#475569',marginBottom:28,lineHeight:1.8}}>SMC • ICT • Wyckoff • Volume Profile<br/>200+ coin için kurumsal analiz</div>
+            <div style={{fontSize:20,fontWeight:900,marginBottom:8,background:'linear-gradient(135deg,#60a5fa,#a78bfa)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>YAPAY ZEKA DESTEKLİ DERİN ANALİZ</div>
+            <div style={{fontSize:13,color:'#475569',marginBottom:28,lineHeight:1.8}}>SMC • ICT • Wyckoff • Volume Profile<br/>200+ coin için kurumsal düzeyde AI analizi</div>
             <button onClick={()=>setDrawer(true)} style={{background:'linear-gradient(135deg,#2563eb,#8b5cf6)',borderRadius:12,padding:'14px 32px',color:'#fff',fontSize:15,fontWeight:800,boxShadow:'0 6px 24px rgba(37,99,235,0.4)'}}>
               🔱 Analiz Başlat
             </button>
