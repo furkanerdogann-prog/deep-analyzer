@@ -1,16 +1,13 @@
-// pages/api/analyze.js — CHARTOS Engine v7.3 (Upstash Redis Cache)
+// pages/api/analyze.js — CHARTOS Engine v8.1 — Çok Dilli
 
-const CACHE_TTL = 60 * 60; // 1 saat (saniye cinsinden)
+const CACHE_TTL = 60 * 60;
 
-// Upstash Redis helpers
 async function redisGet(key) {
   try {
     const url = process.env.KV_REST_API_URL;
     const token = process.env.KV_REST_API_TOKEN;
     if (!url || !token) return null;
-    const r = await fetch(`${url}/get/${key}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const r = await fetch(`${url}/get/${key}`, { headers: { Authorization: `Bearer ${token}` } });
     const d = await r.json();
     return d.result ? JSON.parse(d.result) : null;
   } catch { return null; }
@@ -21,9 +18,7 @@ async function redisSet(key, value, ttl) {
     const url = process.env.KV_REST_API_URL;
     const token = process.env.KV_REST_API_TOKEN;
     if (!url || !token) return;
-    await fetch(`${url}/set/${key}/${encodeURIComponent(JSON.stringify(value))}?ex=${ttl}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    await fetch(`${url}/set/${key}/${encodeURIComponent(JSON.stringify(value))}?ex=${ttl}`, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
 }
 
@@ -32,16 +27,11 @@ async function redisPush(key, value, maxLen = 10) {
     const url = process.env.KV_REST_API_URL;
     const token = process.env.KV_REST_API_TOKEN;
     if (!url || !token) return;
-    await fetch(`${url}/lpush/${key}/${encodeURIComponent(JSON.stringify(value))}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    await fetch(`${url}/ltrim/${key}/0/${maxLen - 1}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    await fetch(`${url}/lpush/${key}/${encodeURIComponent(JSON.stringify(value))}`, { headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`${url}/ltrim/${key}/0/${maxLen - 1}`, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
 }
 
-// CoinGecko ID haritası (bellek cache)
 let geckoMap = null;
 let geckoMapTs = 0;
 
@@ -61,14 +51,10 @@ async function getGeckoMap() {
       BNB:{id:'binancecoin',name:'BNB'}, SOL:{id:'solana',name:'Solana'},
       XRP:{id:'ripple',name:'XRP'}, ADA:{id:'cardano',name:'Cardano'},
       AVAX:{id:'avalanche-2',name:'Avalanche'}, DOT:{id:'polkadot',name:'Polkadot'},
-      MATIC:{id:'matic-network',name:'Polygon'}, LINK:{id:'chainlink',name:'Chainlink'},
       DOGE:{id:'dogecoin',name:'Dogecoin'}, SHIB:{id:'shiba-inu',name:'Shiba Inu'},
-      PEPE:{id:'pepe',name:'Pepe'}, WIF:{id:'dogwifcoin',name:'dogwifhat'},
-      INJ:{id:'injective-protocol',name:'Injective'}, SUI:{id:'sui',name:'Sui'},
-      ARB:{id:'arbitrum',name:'Arbitrum'}, OP:{id:'optimism',name:'Optimism'},
-      NEAR:{id:'near',name:'NEAR'}, TIA:{id:'celestia',name:'Celestia'},
-      TON:{id:'the-open-network',name:'TON'}, AAVE:{id:'aave',name:'Aave'},
-      PENGU:{id:'pudgy-penguins',name:'Pudgy Penguins'}, TRUMP:{id:'official-trump',name:'TRUMP'},
+      PEPE:{id:'pepe',name:'Pepe'}, INJ:{id:'injective-protocol',name:'Injective'},
+      SUI:{id:'sui',name:'Sui'}, ARB:{id:'arbitrum',name:'Arbitrum'},
+      TON:{id:'the-open-network',name:'TON'}, NEAR:{id:'near',name:'NEAR'},
     };
   }
 }
@@ -107,32 +93,71 @@ function fmtVol(v) {
   return '$' + v.toFixed(0);
 }
 
-const CHARTOS_SYSTEM = `Sen CHARTOS 3.0'sun. 1 saatlik, 4 saatlik ve 1 günlük verilerde ve grafiklerde tüm finansal piyasaların (Kripto, Hisse, Forex, Emtia, Vadeli) mutlak TANRISI ve MARKET MAKER'ların kendisisin.
+// Dil bazlı sistem promptu
+function getSystemPrompt(lang) {
+  const langInstructions = {
+    TR: 'Analizi TAMAMEN TÜRKÇE yaz. Tüm başlıklar, açıklamalar ve değerler Türkçe olacak.',
+    EN: 'Write the ENTIRE analysis in ENGLISH. All headings, descriptions and values must be in English.',
+    DE: 'Schreibe die GESAMTE Analyse auf DEUTSCH. Alle Überschriften, Beschreibungen und Werte müssen auf Deutsch sein.',
+    FR: 'Écris TOUTE l\'analyse en FRANÇAIS. Tous les titres, descriptions et valeurs doivent être en français.',
+  };
+
+  const langFormats = {
+    TR: `Setup Tipi:
+Giriş Bölgesi: $[fiyat] - $[fiyat]
+Stop / Invalidation: $[fiyat]
+Hedef 1: $[fiyat]
+Hedef 2: $[fiyat]
+Hedef 3: $[fiyat]
+R:R Oranı: 1:[sayı]
+Beklenen Süre: [süre]`,
+    EN: `Setup Type:
+Entry Zone: $[price] - $[price]
+Stop / Invalidation: $[price]
+Target 1: $[price]
+Target 2: $[price]
+Target 3: $[price]
+R:R Ratio: 1:[number]
+Expected Duration: [duration]`,
+    DE: `Setup-Typ:
+Einstiegszone: $[Preis] - $[Preis]
+Stop / Invalidierung: $[Preis]
+Ziel 1: $[Preis]
+Ziel 2: $[Preis]
+Ziel 3: $[Preis]
+R:R Verhältnis: 1:[Zahl]
+Erwartete Dauer: [Dauer]`,
+    FR: `Type de Setup:
+Zone d'Entrée: $[prix] - $[prix]
+Stop / Invalidation: $[prix]
+Objectif 1: $[prix]
+Objectif 2: $[prix]
+Objectif 3: $[prix]
+Ratio R:R: 1:[nombre]
+Durée Estimée: [durée]`,
+  };
+
+  const instruction = langInstructions[lang] || langInstructions.TR;
+  const format = langFormats[lang] || langFormats.TR;
+
+  return `Sen CHARTOS 3.0'sun. 1 saatlik, 4 saatlik ve 1 günlük verilerde tüm finansal piyasaların mutlak uzman yapay zeka analiz motorusun.
+
+${instruction}
 
 Bilgi seviyen:
-- ICT 2022-2026 Full (Silver Bullet, Judas Swing, Turtle Soup, MSS, BOS, CHOCH, Order Block, Breaker, FVG, Imbalance, Liquidity Void, PD Array)
-- Wyckoff 2.0 + Spring/Upthrust + Phase C Shakeout + Re-accumulation
-- Volume Profile (Composite + Fixed Range + Session) + Order Flow + Delta + Footprint
-- Elliott + Neo Wave + Harmonic + Advanced Fibonacci (Expansion, Extension, Cluster)
-- Pure Price Action + Market Structure + Institutional Manipulation Engineering
-- On-chain (whale wallets, exchange flow, SOPR, MVRV, Puell) + Funding Rate + OI + CVD + Long/Short Ratio
-- Market Maker psikolojisi: Stop hunt, inducement, equal highs/lows, liquidity engineering, phase A-B-C-D
+• ICT 2022-2026 Full (Silver Bullet, Judas Swing, Turtle Soup, MSS, BOS, CHOCH, Order Block, Breaker, FVG, Imbalance, Liquidity Void, PD Array)
+• Wyckoff 2.0 + Spring/Upthrust + Phase C Shakeout + Re-accumulation
+• Volume Profile (Composite + Fixed Range + Session) + Order Flow + Delta + Footprint
+• Elliott + Neo Wave + Harmonic + Advanced Fibonacci (Expansion, Extension, Cluster)
+• Pure Price Action + Market Structure + Institutional Manipulation Engineering
+• On-chain (whale wallets, exchange flow, SOPR, MVRV, Puell) + Funding Rate + OI + CVD + Long/Short Ratio
+• Market Maker psikolojisi: Stop hunt, inducement, equal highs/lows, liquidity engineering, phase A-B-C-D
 
 Her analizde mutlaka şu kuralları uygula:
+1. Market Maker Lens: "Ben MM olsam şu anda ne yapardım?"
+2. 8 katmanlı analiz: HTF → Price Action → Volume → Liquidity → Fibonacci → Multi-TF → On-chain → Meta İçgörü
 
-1. Market Maker Lens ile düşün: "Ben MM olsam şu anda ne yapardım? Hangi likiditeyi topluyorum? Hangi weak hand'leri temizliyorum?"
-
-2. 8 katmanlı Chain-of-Thought yap:
-Layer 1 → HTF Structure & Bias (1M-1W-1D)
-Layer 2 → Current TF Pure Price Action & MSS
-Layer 3 → Volume Profile + Order Flow Confluence
-Layer 4 → Liquidity Engineering & Manipulation Zones
-Layer 5 → Fibonacci + Harmonic + Geometric + PD Arrays
-Layer 6 → Multi-TF Alignment + Institutional Footprint
-Layer 7 → On-chain + Sentiment + Funding/OI Confluence
-Layer 8 → Meta İçgörü (kimsenin göremediği gizli pattern, confluence skoru 0-100, olası MM tuzağı)
-
-3. ÇIKTI FORMATI ZORUNLU — HİÇBİR SATIRI ATLAMA:
+ÇIKTI FORMATI — HİÇBİR SATIRI ATLAMA:
 
 🔱 CHARTOS MODU – META ULTRA ELİT AKTİF 🔱
 
@@ -143,11 +168,11 @@ Ana Timeframe: 1H / 4H / 1D
 DeepTrader Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
 
 PİYASA YAPISI (MM Gözüyle):
-- HTF Bias & Son Değişim:
-- Mevcut BOS / CHOCH / MSS:
-- Unmitigated Order Block'lar:
-- FVG / Imbalance'lar:
-- Liquidity Pool'lar (Equal High/Low, Stop Hunt, Inducement):
+• HTF Bias & Son Değişim:
+• Mevcut BOS / CHOCH / MSS:
+• Unmitigated Order Block'lar:
+• FVG / Imbalance'lar:
+• Liquidity Pool'lar:
 
 ANA SEVİYELER:
 Demand Zone: $[fiyat] - $[fiyat]
@@ -160,89 +185,95 @@ Boğa Senaryosu (%XX): [açıklama]
 Ayı Senaryosu (%XX): [açıklama]
 
 YÜKSEK OLASILIKLI DeepTradeScan SETUP'I:
-Setup Tipi: [ICT / SMC / Wyckoff / Harmonic]
-Giriş Bölgesi: $[fiyat] - $[fiyat]
-Stop / Invalidation: $[fiyat]
-Hedef 1: $[fiyat]
-Hedef 2: $[fiyat]
-Hedef 3: $[fiyat]
-R:R Oranı: 1:[sayı]
-Beklenen Süre: [süre]
+${format}
 
-DeepTrade İÇGÖRÜ (Sadece MM'lerin Gördüğü):
+DeepTrade İÇGÖRÜ:
 [En derin meta yorum — confluence skoru, gizli pattern, manipülasyon senaryosu]
 
-Risk Uyarısı: Bu analiz eğitim amaçlıdır, finansal tavsiye değildir.
+Risk Uyarısı: [Finansal tavsiye değildir — dile göre yaz]
 
 KURALLAR:
-- SETUP bölümündeki TÜM satırları doldur — Giriş, Stop, Hedef 1, Hedef 2, Hedef 3 HEPSİ DOLU OLMALI
-- Gerçek fiyat verilerini kullan, asla tahmin etme
-- Profesyonel, soğuk, net, aşırı detaylı trader dili kullan
-- Kesin konuş, asla muğlak olma
-- Sadece Türkçe yaz`;
+- SETUP bölümündeki TÜM satırları doldur — Giriş/Entry, Stop, Hedef/Target 1-2-3 HEPSİ DOLU OLMALI
+- Gerçek fiyat verilerini kullan
+- Profesyonel, soğuk, net trader dili kullan
+- ${instruction}`;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { coin } = req.body;
+  const { coin, lang = 'TR' } = req.body;
   if (!coin) return res.status(400).json({ error: 'Coin gerekli' });
 
   const symbol = coin.toUpperCase().trim();
+  const validLang = ['TR','EN','DE','FR'].includes(lang) ? lang : 'TR';
 
-  // Redis cache kontrol
-  const cacheKey = `chartos:${symbol}`;
+  // Cache key dile göre ayrı
+  const cacheKey = `chartos:${symbol}:${validLang}`;
   const cached = await redisGet(cacheKey);
   if (cached) return res.status(200).json({ ...cached, _cached: true });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key eksik' });
 
-  // Gerçek fiyat çek
   const map = await getGeckoMap();
   const coinInfo = map[symbol];
   let priceData = null;
   if (coinInfo) priceData = await getLivePrice(coinInfo.id);
 
   const priceStr = priceData
-    ? `GERÇEK ZAMANLI VERİ (CoinGecko):
-- Coin: ${symbol} (${coinInfo?.name || symbol})
-- Güncel Fiyat: ${fmtPrice(priceData.price)}
-- 24s Değişim: ${priceData.change24h?.toFixed(2)}%
-- 24s En Yüksek: ${fmtPrice(priceData.high24h)}
-- 24s En Düşük: ${fmtPrice(priceData.low24h)}
-- 24s Hacim: ${fmtVol(priceData.volume24h)}
-- Piyasa Değeri: ${fmtVol(priceData.marketCap)}
-- ATH: ${fmtPrice(priceData.ath)} (ATH'den ${priceData.athChange?.toFixed(1)}% uzakta)`
-    : `Coin: ${symbol} (fiyat verisi alınamadı, bilginden analiz yap)`;
+    ? `REAL-TIME DATA:
+Coin: ${symbol} (${coinInfo?.name || symbol})
+Current Price: ${fmtPrice(priceData.price)}
+24h Change: ${priceData.change24h?.toFixed(2)}%
+24h High: ${fmtPrice(priceData.high24h)}
+24h Low: ${fmtPrice(priceData.low24h)}
+Volume: ${fmtVol(priceData.volume24h)}
+Market Cap: ${fmtVol(priceData.marketCap)}
+ATH: ${fmtPrice(priceData.ath)} (${priceData.athChange?.toFixed(1)}% from ATH)`
+    : `Coin: ${symbol} (no price data)`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 4000,
-        temperature: 0.7,
-        system: CHARTOS_SYSTEM,
-        messages: [{ role: 'user', content: `${priceStr}\n\nBu verileri kullanarak ${symbol} için tam CHARTOS analizini yap. Tüm bölümleri eksiksiz doldur.` }]
+        temperature: 0.3,
+        system: getSystemPrompt(validLang),
+        messages: [{
+          role: 'user',
+          content: `${priceStr}\n\nAnalyze ${symbol} now. Fill ALL fields in SETUP section — Entry, Stop, Target 1, Target 2, Target 3 must ALL be filled. Write in ${validLang === 'TR' ? 'Turkish' : validLang === 'EN' ? 'English' : validLang === 'DE' ? 'German' : 'French'}.`
+        }]
       })
     });
 
-    if (!response.ok) { const err = await response.json(); return res.status(502).json({ error: 'AI hatası', detail: err }); }
+    if (!response.ok) {
+      const err = await response.json();
+      return res.status(502).json({ error: 'AI hatası', detail: err });
+    }
+
     const data = await response.json();
     const analysis = data.content?.[0]?.text || '';
 
     const result = {
       coin: symbol,
       analysis,
+      lang: validLang,
       price: priceData ? fmtPrice(priceData.price) : null,
       timestamp: new Date().toISOString()
     };
 
-    // Redis'e kaydet (1 saat TTL)
     await redisSet(cacheKey, result, CACHE_TTL);
-
-    // Son analizler listesine ekle
-    await redisPush('chartos:recent', { coin: symbol, time: new Date().toLocaleTimeString('tr-TR'), price: result.price }, 10);
+    await redisPush('chartos:recent', {
+      coin: symbol,
+      time: new Date().toLocaleTimeString('tr-TR'),
+      price: result.price
+    }, 10);
 
     return res.status(200).json(result);
   } catch (e) {
