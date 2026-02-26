@@ -99,7 +99,8 @@ export default function App() {
   const [recent,setRecent]=useState([]);
   const [copied,setCopied]=useState(false);
   const [lang,setLang]=useState('TR');
-  const [showLang,setShowLang]=useState(false);
+  const LANG_COLORS = {TR:'#ef4444',EN:'#3b82f6',DE:'#f59e0b',FR:'#8b5cf6'};
+  const LANG_FLAGS = {TR:'🇹🇷',EN:'🇬🇧',DE:'🇩🇪',FR:'🇫🇷'};
 
   const T = LANGS[lang];
 
@@ -113,8 +114,7 @@ export default function App() {
 
   function changeLang(code) {
     setLang(code);
-    setShowLang(false);
-    if (typeof window!=='undefined') localStorage.setItem('dts_lang', code);
+    try { localStorage.setItem('dts_lang', code); } catch {}
   }
 
   async function analyze(symbol){
@@ -181,24 +181,18 @@ export default function App() {
           </div>
         )}
 
-        {/* DİL SEÇİCİ */}
-        <div style={{position:'relative',flexShrink:0}}>
-          <button onClick={()=>setShowLang(!showLang)}
-            style={{background:'#0d1421',border:'1px solid #162440',borderRadius:8,padding:'6px 10px',color:'#94a3b8',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',gap:5}}>
-            {LANGS[lang].flag} {lang} <span style={{fontSize:9,color:'#334155'}}>▾</span>
-          </button>
-          {showLang&&(
-            <div style={{position:'absolute',right:0,top:42,background:'#0d1421',border:'1px solid #162440',borderRadius:10,overflow:'hidden',zIndex:999,minWidth:140,animation:'langDrop .15s ease'}}>
-              {Object.values(LANGS).map(l=>(
-                <button key={l.code} onClick={()=>changeLang(l.code)}
-                  style={{width:'100%',padding:'10px 14px',background:lang===l.code?'rgba(26,106,255,0.1)':'transparent',color:lang===l.code?'#60a5fa':'#94a3b8',fontSize:13,fontWeight:lang===l.code?700:400,textAlign:'left',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid #0f1923'}}
-                  onMouseOver={e=>e.currentTarget.style.background='rgba(255,255,255,0.03)'}
-                  onMouseOut={e=>e.currentTarget.style.background=lang===l.code?'rgba(26,106,255,0.1)':'transparent'}>
-                  {l.flag} {l.label}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* DİL SEÇİCİ — 4 BUTON */}
+        <div style={{display:'flex',gap:3,flexShrink:0}}>
+          {['TR','EN','DE','FR'].map(code=>{
+            const active = lang===code;
+            const color = LANG_COLORS[code];
+            return (
+              <button key={code} onClick={()=>changeLang(code)} style={{padding:'5px 8px',borderRadius:7,border:active?`1px solid ${color}`:'1px solid #162440',background:active?`${color}22`:'#0d1421',color:active?color:'#475569',fontSize:11,fontWeight:active?800:500,cursor:'pointer',display:'flex',alignItems:'center',gap:3,transition:'all .15s'}}>
+                <span style={{fontSize:13}}>{LANG_FLAGS[code]}</span>
+                <span>{code}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -393,7 +387,6 @@ export default function App() {
       )}
 
       {/* Dil dropdown dışına tıkla kapat */}
-      {showLang&&<div onClick={()=>setShowLang(false)} style={{position:'fixed',inset:0,zIndex:998}}/>}
     </div>
   );
 }
