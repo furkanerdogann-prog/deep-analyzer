@@ -1,198 +1,203 @@
 const CHANNEL = '@deeptradescan';
+const MAJOR = ['BTC', 'ETH'];
+const ALTS = ['SOL','XRP','BNB','DOGE','ADA','AVAX','INJ','SUI','ARB','NEAR','TON','MATIC','LINK','PEPE','WIF','TIA','AAVE','OP','APT','LTC','ATOM','FET','RENDER','HBAR','KAS','STX','GMX','RUNE','DOT','SHIB'];
+const TAGS = '#crypto #bitcoin #btc #ethereum #eth #blockchain #cryptonews #cryptotrading #trading #defi #binance #altcoin #cryptomarket #bitcoinnews #investing';
 
-// Karışık altcoin listesi — her seferinde farklı coin
-const COINS = [
-  'BTC','ETH','SOL','XRP','BNB','DOGE','ADA','AVAX',
-  'INJ','SUI','ARB','NEAR','TON','DOT','MATIC','LINK',
-  'PEPE','WIF','SHIB','BONK','TIA','AAVE','OP','APT',
-  'LTC','ATOM','UNI','FET','RENDER','HBAR','KAS','STX'
-];
-
-const GECKO_IDS = {
-  BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',
-  BNB:'binancecoin',ADA:'cardano',AVAX:'avalanche-2',DOT:'polkadot',
-  INJ:'injective-protocol',SUI:'sui',ARB:'arbitrum',NEAR:'near',
-  TON:'the-open-network',MATIC:'matic-network',LINK:'chainlink',
-  DOGE:'dogecoin',SHIB:'shiba-inu',PEPE:'pepe',WIF:'dogwifcoin',
-  BONK:'bonk',TIA:'celestia',AAVE:'aave',OP:'optimism',APT:'aptos',
-  LTC:'litecoin',ATOM:'cosmos',UNI:'uniswap',FET:'fetch-ai',
-  RENDER:'render-token',HBAR:'hedera-hashgraph',KAS:'kaspa',STX:'blockstack'
-};
-
-const TAGS = `#crypto #bitcoin #btc #ethereum #eth #blockchain #cryptonews #cryptotrading #trading #defi #binance #altcoin #cryptomarket #bitcoinnews #investing`;
-
-async function getLivePrice(coin) {
-  try {
-    const id = GECKO_IDS[coin]||coin.toLowerCase();
-    const r = await fetch(`https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&community_data=false&developer_data=false`);
-    const d = await r.json();
-    const m = d.market_data;
-    return {price:m.current_price.usd, change24h:m.price_change_percentage_24h?.toFixed(2)};
-  } catch {return null;}
+function extractPriceRange(line) {
+  const m = line.match(/\$\s*([\d,]+\.?\d*)\s*[-\u2013\u2014]\s*\$?\s*([\d,]+\.?\d*)/);
+  if (m) return { v1: parseFloat(m[1].replace(/,/g,'')), v2: parseFloat(m[2].replace(/,/g,'')) };
+  const s = line.match(/\$\s*([\d,]+\.?\d*)/);
+  if (s) return { v1: parseFloat(s[1].replace(/,/g,'')), v2: null };
+  return null;
 }
 
-async function getFearGreed() {
-  try {const r=await fetch('https://api.alternative.me/fng/?limit=1');const d=await r.json();return d.data?.[0];} catch {return null;}
+function fmtP(n) {
+  if (!n || isNaN(n)) return null;
+  if (n >= 1000) return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 1) return '$' + n.toFixed(4);
+  if (n >= 0.0001) return '$' + n.toFixed(5);
+  return '$' + n.toFixed(8);
 }
 
-function fmtPrice(p) {
-  if(!p) return 'N/A';
-  if(p>=1000) return '$'+p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  if(p>=1) return '$'+p.toFixed(4);
-  if(p>=0.001) return '$'+p.toFixed(5);
-  return '$'+p.toFixed(8);
+function fmtRange(r) {
+  if (!r) return null;
+  return r.v2 ? fmtP(r.v1) + ' \u2013 ' + fmtP(r.v2) : fmtP(r.v1);
 }
 
-function fgLabel(v) {
-  const n=+v;
-  if(n<=25) return '🔴 Aşırı Korku';
-  if(n<=45) return '🟠 Korku';
-  if(n<=55) return '🟡 Nötr';
-  if(n<=75) return '🟢 Açgözlülük';
-  return '🟢 Aşırı Açgözlülük';
-}
+function parseSetup(text) {
+  if (!text) return {};
+  const clean = text.replace(/\*\*/g,'').replace(/\*/g,'').replace(/^#+\s*/gm,'');
+  const lines = clean.split('\n').map(function(l){ return l.trim(); });
+  var setupTip='', giris='', stop='', h1='', h2='', h3='', rr='', sure='', bias='';
 
-function cleanLine(line) {
-  return line.replace(/\*\*/g,'').replace(/\*/g,'').replace(/^#+\s*/,'').replace(/^[-•]\s*/,'').trim();
-}
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var ll = line.toLowerCase();
+    var nxt = (lines[i+1] || '').trim();
 
-function findDollar(line) {
-  const m = line.match(/\$\s*([\d,]+\.?\d*)\s*(?:[-–]\s*\$\s*([\d,]+\.?\d*))?/);
-  if(!m) return '';
-  const v1 = parseFloat(m[1].replace(/,/g,''));
-  const v2 = m[2] ? parseFloat(m[2].replace(/,/g,'')) : null;
-  const fmt = n => n>=1000 ? '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : n>=1 ? '$'+n.toFixed(4) : '$'+n.toFixed(5);
-  return v2 ? `${fmt(v1)} – ${fmt(v2)}` : fmt(v1);
-}
-
-function parseSignal(text) {
-  if(!text) return {};
-  const lines = text.split('\n').map(cleanLine).filter(l=>l.length>1);
-  let giris='', stop='', h1='', h2='', h3='', rr='', bias='', setupTip='';
-
-  for(const line of lines) {
-    const ll = line.toLowerCase();
-
-    // SETUP TİPİ
-    if(!setupTip && (ll.includes('setup tipi') || ll.includes('setup tip'))) {
-      const val = line.split(':').slice(1).join(':').trim();
-      if(val) setupTip = val;
+    if (!bias && (ll.indexOf('deeptrader bias') >= 0 || ll.indexOf('deeptradescan bias') >= 0)) {
+      var s = (line + ' ' + nxt).toLowerCase();
+      if (s.indexOf('aşırı boğa') >= 0 || s.indexOf('güçlü boğa') >= 0) bias = 'GÜÇLÜ BOĞA 🟢';
+      else if (s.indexOf('boğa') >= 0 || s.indexOf('bull') >= 0) bias = 'BOĞA 🟢';
+      else if (s.indexOf('aşırı ayı') >= 0 || s.indexOf('güçlü ayı') >= 0) bias = 'GÜÇLÜ AYI 🔴';
+      else if (s.indexOf('ayı') >= 0 || s.indexOf('bear') >= 0) bias = 'AYI 🔴';
+      else bias = 'NÖTR ⚪';
     }
 
-    // BIAS
-    if(!bias && (ll.includes('bias') || ll.includes('deeptrader') || ll.includes('deeptradescan'))) {
-      if(ll.includes('aşırı boğa') || ll.includes('güçlü boğa')) bias='🟢 GÜÇLÜ BOĞA';
-      else if(ll.includes('boğa') || ll.includes('bull')) bias='🟢 BOĞA';
-      else if(ll.includes('aşırı ayı') || ll.includes('güçlü ayı')) bias='🔴 GÜÇLÜ AYI';
-      else if(ll.includes('ayı') || ll.includes('bear')) bias='🔴 AYI';
+    if (!setupTip && ll.indexOf('setup tipi:') >= 0) {
+      var v = line.split(':').slice(1).join(':').trim().replace(/^\[|\]$/g,'');
+      setupTip = v || nxt;
+    }
+    if (!setupTip && ll.indexOf('setup tip:') >= 0) {
+      var v = line.split(':').slice(1).join(':').trim().replace(/^\[|\]$/g,'');
+      setupTip = v || nxt;
     }
 
-    // GİRİŞ
-    if(!giris && (ll.includes('giriş bölgesi') || ll.includes('giriş:') || ll.includes('entry'))) {
-      const val = findDollar(line);
-      if(val) giris = val;
+    if (!giris && (ll.indexOf('giriş bölgesi:') >= 0 || ll.indexOf('entry zone:') >= 0)) {
+      var v = line.split(':').slice(1).join(':');
+      var r = extractPriceRange(v) || extractPriceRange(nxt);
+      if (r) giris = fmtRange(r);
     }
 
-    // STOP
-    if(!stop && (ll.includes('stop') && (ll.includes('invalidation') || ll.includes(':') || ll.includes('/')))) {
-      const val = findDollar(line);
-      if(val) stop = val;
-    }
-
-    // HEDEFLER
-    if(!h1 && ll.match(/hedef\s*1|tp\s*1|target\s*1/)) { const val=findDollar(line); if(val) h1=val; }
-    if(!h2 && ll.match(/hedef\s*2|tp\s*2|target\s*2/)) { const val=findDollar(line); if(val) h2=val; }
-    if(!h3 && ll.match(/hedef\s*3|tp\s*3|target\s*3/)) { const val=findDollar(line); if(val) h3=val; }
-
-    // R:R
-    if(!rr) {
-      const m = line.match(/1\s*:\s*[\d.]+/);
-      if(m && (ll.includes('r:r') || ll.includes('oran') || ll.includes('risk'))) rr=m[0].replace(/\s/g,'');
-    }
-  }
-
-  // Fallback — demand zone'dan giriş çek
-  if(!giris) {
-    for(const line of lines) {
-      if(line.toLowerCase().includes('demand zone') || line.toLowerCase().includes('demand block')) {
-        const val = findDollar(line);
-        if(val){giris=val;break;}
+    if (!stop && ll.indexOf('stop') >= 0 && ll.indexOf(':') >= 0 && !ll.indexOf('hedef') >= 0) {
+      var colonIdx = line.indexOf(':');
+      if (colonIdx >= 0 && ll.substring(0, colonIdx).indexOf('stop') >= 0) {
+        var v = line.substring(colonIdx + 1);
+        var r = extractPriceRange(v) || extractPriceRange(nxt);
+        if (r) stop = fmtRange(r);
       }
     }
+
+    if (!h1 && (ll.indexOf('hedef 1:') >= 0 || ll.indexOf('target 1:') >= 0)) {
+      var v = line.split(':').slice(1).join(':');
+      var r = extractPriceRange(v) || extractPriceRange(nxt);
+      if (r) h1 = fmtP(r.v1);
+    }
+    if (!h2 && (ll.indexOf('hedef 2:') >= 0 || ll.indexOf('target 2:') >= 0)) {
+      var v = line.split(':').slice(1).join(':');
+      var r = extractPriceRange(v) || extractPriceRange(nxt);
+      if (r) h2 = fmtP(r.v1);
+    }
+    if (!h3 && (ll.indexOf('hedef 3:') >= 0 || ll.indexOf('target 3:') >= 0)) {
+      var v = line.split(':').slice(1).join(':');
+      var r = extractPriceRange(v) || extractPriceRange(nxt);
+      if (r) h3 = fmtP(r.v1);
+    }
+
+    if (!rr && (ll.indexOf('r:r') >= 0 || ll.indexOf('oran') >= 0 || ll.indexOf('ratio') >= 0)) {
+      var m = (line + ' ' + nxt).match(/1\s*:\s*([\d.]+)/);
+      if (m) rr = '1:' + m[1];
+    }
+
+    if (!sure && (ll.indexOf('beklenen süre:') >= 0 || ll.indexOf('expected duration:') >= 0)) {
+      var v = line.split(':').slice(1).join(':').trim().replace(/^\[|\]$/g,'');
+      sure = v || nxt;
+    }
   }
 
-  return {giris,stop,h1,h2,h3,rr,bias,setupTip};
+  if (!giris) {
+    var m = text.match(/(?:Giriş Bölgesi|Entry Zone|OTE)[:\s]*\$?([\d,]+\.?\d*)\s*[-\u2013]\s*\$?([\d,]+\.?\d*)/i);
+    if (m) giris = fmtP(parseFloat(m[1].replace(/,/g,''))) + ' \u2013 ' + fmtP(parseFloat(m[2].replace(/,/g,'')));
+  }
+
+  return {setupTip, giris, stop, h1, h2, h3, rr, sure, bias};
 }
 
-function buildMessage(coin, price, fg, sig) {
-  const bias = sig.bias || (price?.change24h>=0?'🟢 BOĞA':'🔴 AYI');
-  const dir = bias.includes('BOĞA')?'LONG 🟢':'SHORT 🔴';
-  const chg = price?.change24h;
-  const chgEmoji = chg>=0?'📈':'📉';
-  const setupLine = sig.setupTip ? `⚡ Setup: ${sig.setupTip}\n` : '';
-
-  return `🔱 CHARTOS SİNYAL | $${coin}/USDT
-━━━━━━━━━━━━━━━━━━━━━
-${setupLine}💹 ${dir} | ${bias}
-💰 ${fmtPrice(price?.price)} ${chgEmoji} %${chg}
-😱 F&G: ${fg?.value}/100 ${fgLabel(fg?.value)}
-━━━━━━━━━━━━━━━━━━━━━
-📍 Giriş: ${sig.giris||'—'}
-🛑 Stop: ${sig.stop||'—'}
-🎯 Hedef 1: ${sig.h1||'—'}
-🎯 Hedef 2: ${sig.h2||'—'}
-🎯 Hedef 3: ${sig.h3||'—'}
-${sig.rr?`⚡ R:R → ${sig.rr}`:''}
-━━━━━━━━━━━━━━━━━━━━━
-🌐 deeptradescan.com
-
-${TAGS}`;
+function buildMessage(coin, sig, price) {
+  var dir = (sig.bias && sig.bias.indexOf('AYI') >= 0) ? 'SHORT 🔴' : 'LONG 🟢';
+  var setup = sig.setupTip || 'Smart Money Concept';
+  var lines = [
+    '🔱 CHARTOS SİNYAL | $' + coin + '/USDT',
+    '━━━━━━━━━━━━━━━━━━━━━',
+    '⚡ ' + setup,
+    '📊 ' + dir + ' | ' + (sig.bias || 'BOĞA 🟢'),
+    price ? '💰 ' + price : null,
+    '━━━━━━━━━━━━━━━━━━━━━',
+    sig.giris ? '📍 Giriş:  ' + sig.giris : null,
+    sig.stop  ? '🛑 Stop:   ' + sig.stop  : null,
+    sig.h1    ? '🎯 TP1:    ' + sig.h1    : null,
+    sig.h2    ? '🎯 TP2:    ' + sig.h2    : null,
+    sig.h3    ? '🎯 TP3:    ' + sig.h3    : null,
+    sig.rr    ? '⚡ R:R  →  ' + sig.rr    : null,
+    sig.sure  ? '⏱ Süre:   ' + sig.sure  : null,
+    '━━━━━━━━━━━━━━━━━━━━━',
+    '🌐 deeptradescan.com',
+    '',
+    TAGS,
+  ];
+  return lines.filter(function(l){ return l !== null; }).join('\n');
 }
 
-// Her çağrıda farklı coin — karışık sıra
-function getNextCoin(currentIndex) {
-  // Fisher-Yates shuffle seed ile — her gün farklı sıra
-  const day = Math.floor(Date.now() / 86400000);
-  const idx = (currentIndex + day * 7) % COINS.length;
-  return COINS[idx];
+async function fetchAnalysis(coin) {
+  const r = await fetch('https://deeptradescan.com/api/analyze', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Origin': 'https://deeptradescan.com',
+      'Referer': 'https://deeptradescan.com/app',
+      'User-Agent': 'DeepTradeScan-Bot/1.0'
+    },
+    body: JSON.stringify({coin: coin, lang: 'TR'})
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
 }
 
-let coinIdx = 0;
+async function sendTG(botToken, text) {
+  const r = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({chat_id: CHANNEL, text: text})
+  });
+  const d = await r.json();
+  if (!d.ok) throw new Error(d.description);
+}
+
+function getAltCoins() {
+  const slot = Math.floor(Date.now() / 1800000);
+  const day  = Math.floor(Date.now() / 86400000);
+  const s = ALTS.slice();
+  for (var i = s.length - 1; i > 0; i--) {
+    var j = ((day * 2654435761 + i * 40503) >>> 0) % (i + 1);
+    var tmp = s[i]; s[i] = s[j]; s[j] = tmp;
+  }
+  const start = (slot * 3) % s.length;
+  return [s[start % s.length], s[(start+1) % s.length], s[(start+2) % s.length]];
+}
 
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET || 'chartos-secret-2024';
-  if(req.query.key !== secret) return res.status(401).json({error:'Yetkisiz'});
+  if (req.query.key !== secret) return res.status(401).json({error: 'Yetkisiz'});
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if(!botToken) return res.status(500).json({error:'Token eksik'});
+  if (!botToken) return res.status(500).json({error: 'Token eksik'});
 
-  // Manuel coin veya otomatik karışık
-  const coin = req.query.coin || getNextCoin(coinIdx++);
-
-  try {
-    const [priceData, fgData, analyzeRes] = await Promise.all([
-      getLivePrice(coin),
-      getFearGreed(),
-      fetch('https://deeptradescan.com/api/analyze', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({coin})
-      })
-    ]);
-
-    const analyzeData = await analyzeRes.json();
-    const sig = parseSignal(analyzeData.analysis || '');
-    const message = buildMessage(coin, priceData, fgData, sig);
-
-    const tg = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:CHANNEL, text:message})
-    });
-    const tgData = await tg.json();
-    if(!tgData.ok) throw new Error(tgData.description);
-
-    return res.status(200).json({success:true, coin, sig, message});
-  } catch(e) {
-    return res.status(500).json({error:e.message});
+  if (req.query.coin) {
+    const coin = req.query.coin.toUpperCase();
+    try {
+      const data = await fetchAnalysis(coin);
+      const sig  = parseSetup(data.analysis || '');
+      const msg  = buildMessage(coin, sig, data.price);
+      if (!req.query.preview) await sendTG(botToken, msg);
+      return res.status(200).json({success: true, coin: coin, sig: sig, msg: msg});
+    } catch(e) {
+      return res.status(500).json({error: e.message});
+    }
   }
+
+  const coins = MAJOR.concat(getAltCoins());
+  const sent = [], errors = [];
+  for (var i = 0; i < coins.length; i++) {
+    const coin = coins[i];
+    try {
+      if (i > 0) await new Promise(function(r){ setTimeout(r, 5000); });
+      const data = await fetchAnalysis(coin);
+      const sig  = parseSetup(data.analysis || '');
+      const msg  = buildMessage(coin, sig, data.price);
+      await sendTG(botToken, msg);
+      sent.push(coin);
+    } catch(e) {
+      errors.push({coin: coin, error: e.message});
+    }
+  }
+  return res.status(200).json({success: true, sent: sent, errors: errors});
 }
