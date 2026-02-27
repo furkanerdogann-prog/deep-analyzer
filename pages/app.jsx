@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
 
-const COINS = ['BTC','ETH','BNB','SOL','XRP','ADA','AVAX','DOT','MATIC','LINK','UNI','ATOM','LTC','BCH','DOGE','SHIB','PEPE','WIF','BONK','FLOKI','INJ','SUI','APT','ARB','OP','NEAR','TIA','TON','RENDER','AAVE','HBAR','KAS','STX','IMX','LDO','SEI','TRUMP','FTM','SAND','MANA','AXS','GALA','ENJ','CHZ','FLOW','ICP','FIL','AR','GRT','SNX','CRV','SUSHI','YFI','COMP','MKR','DYDX','GMX','RUNE','FET','VET','ALGO','XLM','ETC','XMR','TRX','EOS','CRO','BLUR','APE','ENS','PENDLE','PYTH','ORDI'];
+const COINS = [
+  'BTC','ETH','BNB','SOL','XRP','ADA','AVAX','DOT','MATIC','LINK',
+  'UNI','AAVE','CRV','SUSHI','YFI','COMP','MKR','SNX','GRT','BAL',
+  '1INCH','DYDX','GMX','PENDLE','LDO','ARB','OP','IMX','NEAR','TIA',
+  'TON','APT','SUI','SEI','INJ','HBAR','KAS','STX','FLOW','ICP',
+  'ALGO','VET','EOS','TRX','ETC','XLM','XMR','DOGE','SHIB','PEPE',
+  'WIF','BONK','FLOKI','TRUMP','MEME','BRETT','POPCAT','TURBO','BOME','PNUT',
+  'PENGU','ACT','GOAT','ORDI','PYTH','RUNE','FET','RENDER','AR','FIL',
+  'STRK','ZETA','JTO','PIXEL','MANTA','METIS','VIRTUAL','FARTCOIN','SAND','MANA',
+  'AXS','GALA','ENJ','CHZ','APE','ILV','MAGIC','TAO','WLD','OCEAN',
+  'ARKM','RSS3','ATOM','LTC','BCH','DASH','ZEC','QTUM','ICX','ZIL',
+  'ONT','CRO','OKB','KCS','ENS','BLUR','HOOK','PORTAL','ALT','AI16Z'
+];
 
 // ── DİL PAKETLERİ ──────────────────────────────────────────
 const LANGS = {
@@ -48,25 +60,29 @@ const LANGS = {
 
 function parseAnalysis(text) {
   if (!text) return [];
-  const clean = text
-    .replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s*/g, '')
-    .replace(/Tanrısal/gi,'DeepTradeScan').replace(/Tanrı/gi,'DeepTradeScan')
-    .replace(/TANRISAL/gi,'DEEPTRADESCAN').replace(/TANRI/gi,'DEEPTRADESCAN');
+  const clean = text.replace(/\*\*/g,'').replace(/\*/g,'').replace(/#{1,6}\s*/g,'');
   const lines = clean.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
   const sections = [];
   let current = null;
+
+  const isHeader = l => l.match(/CHARTOS APEX|CHARTOS MODU|CHARTOS AI/i);
+  const isSectionTitle = l => l.match(/^(MARKET MAKER LENS|PİYASA YAPISI|ANA SEVİYELER|KALDIRAÇLI PRO SETUP|SENARYO ANALİZİ|TANRISAL İÇGÖRÜ|Risk Uyarısı|MARKET MAKER|SETUP BÖLÜMÜ|DEEPTRADESCAN İÇGÖRÜ|CHARTOS META|TWEET-READY|Tweet-Ready)/i);
+  const isKV = l => l.match(/^(Varlık|Güncel Fiyat|Ana Timeframe|DeepTrade Bias|DeepTrader Bias|Edge Skoru|Win Probability|HTF Bias|HTF Bias & Son|Mevcut BOS|Unmitigated|FVG|Liquidity Pool|Demand Zone|Supply Zone|Kritik Liquidity|Invalidation|Setup Tipi|Giriş Bölgesi|Stop|Hedef [123]|R:R|Max Leverage|Risk %|Position Sizing|Trailing|Beklenen Süre|Expectancy|Boğa Senaryosu|Ayı Senaryosu|Asset|Current Price|Entry|Target [123]|Expected|Bull|Bear|Confluence|Win Prob):/i);
+
   for (const line of lines) {
-    if (line.match(/CHARTOS (MODU|AI|TANRI)/i)) { sections.push({type:'header',text:line.replace(/[🔱#+]/g,'').trim()}); continue; }
-    if (line.match(/^(PİYASA YAPISI|ANA SEVİYELER|SENARYO|YÜKSEK OLASILIKLI|SETUP|DeepTrade İÇGÖRÜ|AI İÇGÖRÜ|DeepTradeScan İÇGÖRÜ|Risk Uyarısı|Market Maker|MARKET STRUCTURE|KEY LEVELS|SCENARIO|SETUP TYPE|AI INSIGHT|RISK)/i)) {
+    if (isHeader(line)) { sections.push({type:'header',text:line.replace(/[🔱]/g,'').trim()}); continue; }
+    if (isSectionTitle(line)) {
       if (current) sections.push(current);
       current = {type:'section',title:line,items:[]}; continue;
     }
-    if (line.match(/^(Varlık|Güncel Fiyat|Ana Timeframe|DeepTrader Bias|DeepTradeScan Bias|Bias|24s|Setup Tipi|Giriş Bölgesi|Stop|Hedef [123]|R:R|Beklenen Süre|Demand Zone|Supply Zone|Kritik|Invalidation|Boğa Senaryosu|Ayı Senaryosu|Asset|Current Price|Entry|Target [123]|Expected|Bull Scenario|Bear Scenario):/i)) {
+    if (isKV(line)) {
       if (!current) current = {type:'section',title:'ANALİZ',items:[]};
-      const [key,...rest] = line.split(':');
-      current.items.push({type:'kv',key:key.trim(),value:rest.join(':').trim()}); continue;
+      const idx = line.indexOf(':');
+      const key = line.substring(0,idx).trim();
+      const value = line.substring(idx+1).trim();
+      current.items.push({type:'kv',key,value}); continue;
     }
-    if (line.startsWith('•')||line.startsWith('-')||line.startsWith('›')) {
+    if (line.match(/^[•\-›]/)) {
       if (!current) current = {type:'section',title:'ANALİZ',items:[]};
       current.items.push({type:'bullet',text:line.replace(/^[•\-›]\s*/,'')}); continue;
     }
@@ -77,14 +93,32 @@ function parseAnalysis(text) {
   return sections;
 }
 
+function sectionMeta(title) {
+  const t = title.toUpperCase();
+  if (t.includes('MARKET MAKER')) return {icon:'🎯',color:'#7c3aed',bg:'rgba(124,58,237,0.12)',border:'rgba(124,58,237,0.4)'};
+  if (t.includes('PİYASA')||t.includes('YAPISI')) return {icon:'📊',color:'#3b82f6',bg:'rgba(59,130,246,0.10)',border:'rgba(59,130,246,0.35)'};
+  if (t.includes('SEVİYE')) return {icon:'📍',color:'#06b6d4',bg:'rgba(6,182,212,0.10)',border:'rgba(6,182,212,0.35)'};
+  if (t.includes('SETUP')||t.includes('KALDIRAÇLI')) return {icon:'⚡',color:'#10b981',bg:'rgba(16,185,129,0.10)',border:'rgba(16,185,129,0.4)'};
+  if (t.includes('SENARYO')) return {icon:'🎭',color:'#f59e0b',bg:'rgba(245,158,11,0.10)',border:'rgba(245,158,11,0.35)'};
+  if (t.includes('İÇGÖRÜ')||t.includes('TANRISAL')||t.includes('META')) return {icon:'🔮',color:'#a855f7',bg:'rgba(168,85,247,0.12)',border:'rgba(168,85,247,0.4)'};
+  if (t.includes('RISK')) return {icon:'⚠️',color:'#ef4444',bg:'rgba(239,68,68,0.08)',border:'rgba(239,68,68,0.3)'};
+  return {icon:'📋',color:'#94a3b8',bg:'rgba(148,163,184,0.08)',border:'rgba(148,163,184,0.25)'};
+}
+
 function kvColor(key) {
   const k = key.toLowerCase();
-  if (k.includes('giriş')||k.includes('entry')) return '#10b981';
-  if (k.includes('stop')||k.includes('invalid')) return '#ef4444';
-  if (k.includes('hedef')||k.includes('target')) return '#06b6d4';
-  if (k.includes('r:r')) return '#a78bfa';
-  if (k.includes('bias')) return '#f59e0b';
-  return '#f1f5f9';
+  if (k.includes('giriş')||k.includes('entry')) return {color:'#10b981',bg:'rgba(16,185,129,0.12)'};
+  if (k.includes('stop')||k.includes('invalid')) return {color:'#ef4444',bg:'rgba(239,68,68,0.12)'};
+  if (k.includes('hedef 1')||k.includes('target 1')) return {color:'#06b6d4',bg:'rgba(6,182,212,0.10)'};
+  if (k.includes('hedef 2')||k.includes('target 2')) return {color:'#22d3ee',bg:'rgba(34,211,238,0.08)'};
+  if (k.includes('hedef 3')||k.includes('target 3')) return {color:'#67e8f9',bg:'rgba(103,232,249,0.08)'};
+  if (k.includes('r:r')) return {color:'#a78bfa',bg:'rgba(167,139,250,0.12)'};
+  if (k.includes('bias')||k.includes('win prob')||k.includes('edge')) return {color:'#f59e0b',bg:'rgba(245,158,11,0.10)'};
+  if (k.includes('max leverage')) return {color:'#fb923c',bg:'rgba(251,146,60,0.10)'};
+  if (k.includes('setup tipi')||k.includes('setup type')) return {color:'#818cf8',bg:'rgba(129,140,248,0.12)'};
+  if (k.includes('demand')) return {color:'#34d399',bg:'rgba(52,211,153,0.08)'};
+  if (k.includes('supply')) return {color:'#f87171',bg:'rgba(248,113,113,0.08)'};
+  return {color:'#cbd5e1',bg:'transparent'};
 }
 
 export default function App() {
@@ -266,40 +300,43 @@ export default function App() {
           <div style={{animation:'fadeIn .3s ease'}}>
             {sections.map((sec,si)=>{
               if(sec.type==='header') return (
-                <div key={si} style={{background:'linear-gradient(135deg,rgba(26,106,255,0.12),rgba(124,58,237,0.12))',border:'1px solid rgba(99,102,241,0.25)',borderRadius:14,padding:'14px 18px',marginBottom:12,textAlign:'center'}}>
-                  <div style={{fontSize:13,fontWeight:900,color:'#fff',letterSpacing:2}}>🔱 {sec.text}</div>
+                <div key={si} style={{background:'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(26,106,255,0.15))',border:'1px solid rgba(124,58,237,0.35)',borderRadius:16,padding:'16px 20px',marginBottom:14,textAlign:'center',boxShadow:'0 0 30px rgba(124,58,237,0.15)'}}>
+                  <div style={{fontSize:13,fontWeight:900,color:'#fff',letterSpacing:2,textShadow:'0 0 20px rgba(124,58,237,0.8)'}}>🔱 {sec.text}</div>
                 </div>
               );
               if(sec.type==='text') return (
-                <div key={si} style={{fontSize:12,color:'#475569',padding:'4px 0'}}>{sec.text}</div>
+                <div key={si} style={{fontSize:11,color:'#334155',padding:'3px 0',lineHeight:1.5}}>{sec.text}</div>
               );
-              const isSetup=sec.title?.match(/SETUP|YÜKSEK OLASILIKLI/i);
-              const isInsight=sec.title?.match(/İÇGÖRÜ|INSIGHT/i);
+              const meta=sectionMeta(sec.title||'');
               const isRisk=sec.title?.match(/Risk/i);
               return (
-                <div key={si} style={{background:isSetup?'rgba(26,106,255,0.05)':isInsight?'rgba(124,58,237,0.05)':'#0a1020',border:`1px solid ${isSetup?'rgba(26,106,255,0.2)':isInsight?'rgba(124,58,237,0.2)':'#0f1923'}`,borderRadius:14,marginBottom:10,overflow:'hidden',animation:'fadeIn .3s ease'}}>
-                  <div style={{padding:'10px 16px',borderBottom:'1px solid #0f1923',display:'flex',alignItems:'center',gap:8,background:isSetup?'rgba(26,106,255,0.08)':isInsight?'rgba(124,58,237,0.08)':'transparent'}}>
-                    <div style={{width:3,height:14,borderRadius:2,background:isSetup?'#1a6aff':isInsight?'#7c3aed':'#334155'}}/>
-                    <span style={{fontSize:11,fontWeight:800,color:isSetup?'#60a5fa':isInsight?'#a78bfa':'#475569',letterSpacing:1.5,textTransform:'uppercase'}}>
-                      {sec.title?.replace(/[🔱📊⚡🎯]/g,'').trim()}
+                <div key={si} style={{background:meta.bg,border:`1px solid ${meta.border}`,borderRadius:14,marginBottom:10,overflow:'hidden',animation:'fadeIn .3s ease',boxShadow:`0 2px 12px rgba(0,0,0,0.3)`}}>
+                  <div style={{padding:'10px 16px',borderBottom:`1px solid ${meta.border}`,display:'flex',alignItems:'center',gap:10,background:`${meta.bg}`}}>
+                    <span style={{fontSize:14}}>{meta.icon}</span>
+                    <div style={{width:3,height:14,borderRadius:2,background:meta.color,boxShadow:`0 0 8px ${meta.color}`}}/>
+                    <span style={{fontSize:11,fontWeight:800,color:meta.color,letterSpacing:1.5,textTransform:'uppercase',textShadow:`0 0 10px ${meta.color}40`}}>
+                      {sec.title?.replace(/[🔱📊⚡🎯🎭🔮📍⚠️]/g,'').trim()}
                     </span>
                   </div>
-                  <div style={{padding:'8px 0'}}>
+                  <div style={{padding:'6px 0'}}>
                     {sec.items?.map((item,ii)=>{
-                      if(item.type==='kv') return (
-                        <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 16px',borderBottom:'1px solid #080c14',gap:12}}>
-                          <span style={{fontSize:11,color:'#334155',fontWeight:600,letterSpacing:0.5,flexShrink:0,minWidth:120}}>{item.key}</span>
-                          <span style={{fontSize:12,fontWeight:700,color:kvColor(item.key),textAlign:'right'}}>{item.value}</span>
-                        </div>
-                      );
+                      if(item.type==='kv') {
+                        const kvc=kvColor(item.key);
+                        return (
+                          <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 16px',borderBottom:'1px solid rgba(255,255,255,0.03)',gap:12,background:kvc.bg,transition:'background .2s'}}>
+                            <span style={{fontSize:11,color:'#475569',fontWeight:600,letterSpacing:0.5,flexShrink:0,minWidth:110}}>{item.key}</span>
+                            <span style={{fontSize:12,fontWeight:800,color:kvc.color,textAlign:'right',textShadow:`0 0 8px ${kvc.color}50`,lineHeight:1.4}}>{item.value}</span>
+                          </div>
+                        );
+                      }
                       if(item.type==='bullet') return (
                         <div key={ii} style={{display:'flex',gap:8,padding:'6px 16px',alignItems:'flex-start'}}>
-                          <span style={{color:'#1a6aff',fontSize:10,marginTop:3,flexShrink:0}}>▸</span>
+                          <span style={{color:meta.color,fontSize:10,marginTop:3,flexShrink:0}}>▸</span>
                           <span style={{fontSize:12,color:'#64748b',lineHeight:1.6}}>{item.text}</span>
                         </div>
                       );
                       if(item.type==='text') return (
-                        <div key={ii} style={{padding:'6px 16px',fontSize:12,color:isRisk?'#fca5a5':'#64748b',lineHeight:1.6}}>
+                        <div key={ii} style={{padding:'6px 16px',fontSize:12,color:isRisk?'#fca5a5':'#64748b',lineHeight:1.7}}>
                           {isRisk&&<span style={{marginRight:6}}>⚠️</span>}{item.text}
                         </div>
                       );
