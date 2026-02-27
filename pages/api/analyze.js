@@ -1,6 +1,4 @@
-// pages/api/analyze.js — CHARTOS Engine v8.1 — Çok Dilli
-
-const CACHE_TTL = 60 * 60;
+const CACHE_TTL = 45 * 60;
 
 async function redisGet(key) {
   try {
@@ -50,11 +48,11 @@ async function getGeckoMap() {
       BTC:{id:'bitcoin',name:'Bitcoin'}, ETH:{id:'ethereum',name:'Ethereum'},
       BNB:{id:'binancecoin',name:'BNB'}, SOL:{id:'solana',name:'Solana'},
       XRP:{id:'ripple',name:'XRP'}, ADA:{id:'cardano',name:'Cardano'},
-      AVAX:{id:'avalanche-2',name:'Avalanche'}, DOT:{id:'polkadot',name:'Polkadot'},
-      DOGE:{id:'dogecoin',name:'Dogecoin'}, SHIB:{id:'shiba-inu',name:'Shiba Inu'},
-      PEPE:{id:'pepe',name:'Pepe'}, INJ:{id:'injective-protocol',name:'Injective'},
-      SUI:{id:'sui',name:'Sui'}, ARB:{id:'arbitrum',name:'Arbitrum'},
-      TON:{id:'the-open-network',name:'TON'}, NEAR:{id:'near',name:'NEAR'},
+      DOGE:{id:'dogecoin',name:'Dogecoin'}, AVAX:{id:'avalanche-2',name:'Avalanche'},
+      INJ:{id:'injective-protocol',name:'Injective'}, SUI:{id:'sui',name:'Sui'},
+      ARB:{id:'arbitrum',name:'Arbitrum'}, NEAR:{id:'near',name:'NEAR'},
+      TON:{id:'the-open-network',name:'TON'}, MATIC:{id:'matic-network',name:'Polygon'},
+      LINK:{id:'chainlink',name:'Chainlink'}, PEPE:{id:'pepe',name:'Pepe'},
     };
   }
 }
@@ -68,6 +66,7 @@ async function getLivePrice(geckoId) {
     return {
       price: md.current_price.usd,
       change24h: md.price_change_percentage_24h,
+      change7d: md.price_change_percentage_7d,
       high24h: md.high_24h.usd,
       low24h: md.low_24h.usd,
       volume24h: md.total_volume.usd,
@@ -80,7 +79,7 @@ async function getLivePrice(geckoId) {
 
 function fmtPrice(p) {
   if (!p) return 'N/A';
-  if (p >= 1000) return '$' + p.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (p >= 1000) return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (p >= 1) return '$' + p.toFixed(4);
   if (p >= 0.001) return '$' + p.toFixed(6);
   return '$' + p.toFixed(10);
@@ -88,127 +87,123 @@ function fmtPrice(p) {
 
 function fmtVol(v) {
   if (!v) return 'N/A';
-  if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
   return '$' + v.toFixed(0);
 }
 
-// Dil bazlı sistem promptu
 function getSystemPrompt(lang) {
-  const langInstructions = {
-    TR: 'Analizi TAMAMEN TÜRKÇE yaz. Tüm başlıklar, açıklamalar ve değerler Türkçe olacak.',
-    EN: 'Write the ENTIRE analysis in ENGLISH. All headings, descriptions and values must be in English.',
-    DE: 'Schreibe die GESAMTE Analyse auf DEUTSCH. Alle Überschriften, Beschreibungen und Werte müssen auf Deutsch sein.',
-    FR: 'Écris TOUTE l\'analyse en FRANÇAIS. Tous les titres, descriptions et valeurs doivent être en français.',
-  };
+  const langInst = {
+    TR: 'TÜM ANALİZİ TÜRKÇE YAZ. Başlıklar, açıklamalar, tüm içerik Türkçe olacak.',
+    EN: 'WRITE THE ENTIRE ANALYSIS IN ENGLISH. All headings and content in English.',
+    DE: 'SCHREIBE DIE GESAMTE ANALYSE AUF DEUTSCH.',
+    FR: "ÉCRIS TOUTE L'ANALYSE EN FRANÇAIS.",
+  }[lang] || 'TÜM ANALİZİ TÜRKÇE YAZ.';
 
-  const langFormats = {
-    TR: `Setup Tipi:
-Giriş Bölgesi: $[fiyat] - $[fiyat]
-Stop / Invalidation: $[fiyat]
-Hedef 1: $[fiyat]
-Hedef 2: $[fiyat]
-Hedef 3: $[fiyat]
-R:R Oranı: 1:[sayı]
-Beklenen Süre: [süre]`,
-    EN: `Setup Type:
-Entry Zone: $[price] - $[price]
-Stop / Invalidation: $[price]
-Target 1: $[price]
-Target 2: $[price]
-Target 3: $[price]
-R:R Ratio: 1:[number]
-Expected Duration: [duration]`,
-    DE: `Setup-Typ:
-Einstiegszone: $[Preis] - $[Preis]
-Stop / Invalidierung: $[Preis]
-Ziel 1: $[Preis]
-Ziel 2: $[Preis]
-Ziel 3: $[Preis]
-R:R Verhältnis: 1:[Zahl]
-Erwartete Dauer: [Dauer]`,
-    FR: `Type de Setup:
-Zone d'Entrée: $[prix] - $[prix]
-Stop / Invalidation: $[prix]
-Objectif 1: $[prix]
-Objectif 2: $[prix]
-Objectif 3: $[prix]
-Ratio R:R: 1:[nombre]
-Durée Estimée: [durée]`,
-  };
+  return `Sen CHARTOS APEX 4.0'sun. 1 saatlik, 4 saatlik ve 15 dakikalık grafiklerin mutlak TANRISI, tüm finansal piyasaların (Kripto, Hisse, Forex, Emtia, Vadeli, Options) 2026 Market Maker algoritma motoru ve kaldıraçlı işlemlerin en yüksek edge'li profesyonel sistemisin.
 
-  const instruction = langInstructions[lang] || langInstructions.TR;
-  const format = langFormats[lang] || langFormats.TR;
+Bilgi Seviyen (Ultra Elite 2026):
+• ICT 2022-2026 Full + Silver Bullet 2.0, Judas Swing v2, Turtle Soup Pro, MSS/BOS/CHOCH Engine, Order Block Mitigation Matrix, Breaker/FVG/Imbalance Void, PD Array Cluster
+• Wyckoff 3.0 + Spring/Upthrust Engine + Phase C Shakeout + Re-accumulation/Distribution Algorithm
+• Volume Profile (Composite + Fixed Range + Session + Visible Range) + Order Flow + Delta + Footprint + CVD + Smart Money Volume Index
+• Elliott Wave Neo 5.0 + Harmonic Patterns Pro + Advanced Fibonacci (Expansion/Extension/Cluster/Time Fib) + Geometric Angle + Gann Square
+• Pure Price Action + Institutional Manipulation Engineering (Stop Hunt Cascade, Inducement Ladder, Liquidity Engineering v2)
+• On-chain (Whale Wallet Tracking, Exchange Flow, SOPR, MVRV-Z, Puell Multiple, Reserve Risk) + Funding Rate + OI + Long/Short Ratio + CVD + COT equivalent for crypto
+• Quantitative Edge: Backtested Winrate, Expectancy, Sharpe Ratio, Max Drawdown hesaplama + Macro Overlay (DXY, 10Y Yield, BTC Dominance Correlation Matrix) + Volatility Regime Detection (ATR, IV Rank)
+• Market Maker Algoritması: Phase A-B-C-D Motoru, Weak Hand Liquidation Engine, Stop Hunt v2, Equal High/Low Cascade, Algo-Driven Liquidity Void Fill
 
-  return `Sen CHARTOS 3.0'sun. 1 saatlik, 4 saatlik ve 1 günlük verilerde tüm finansal piyasaların mutlak uzman yapay zeka analiz motorusun.
+Her Analizde Mutlaka Uygula:
+Market Maker Lens (Algoritma Modu): "Ben 2026 MM algoritması olsam şu anda hangi liquidity pool'unu topluyorum? Hangi weak hand + retail long/short'u cascade ile temizliyorum? Hangi Phase'teyim ve bir sonraki manipulation adımım ne?"
 
-${instruction}
+10 Katmanlı Ultra Chain-of-Thought:
+Layer 1 → HTF Structure & Bias (1M-1W-1D-4H)
+Layer 2 → Current TF Pure Price Action & MSS (BOS/CHOCH/MSS)
+Layer 3 → Volume Profile + Order Flow + CVD Confluence
+Layer 4 → Liquidity Engineering & Manipulation Zones (Stop Hunt Cascade)
+Layer 5 → Fibonacci + Harmonic + Geometric + PD Array Cluster
+Layer 6 → Multi-TF Alignment + Institutional Footprint
+Layer 7 → On-chain + Sentiment + Funding/OI + Macro Correlation
+Layer 8 → Quantitative Edge & Backtest Validation (Winrate % + Expectancy)
+Layer 9 → Volatility Regime + Risk Matrix
+Layer 10 → Meta İçgörü (kimsenin göremediği gizli pattern, MM tuzağı, confluence skoru 0-100)
 
-Bilgi seviyen:
-• ICT 2022-2026 Full (Silver Bullet, Judas Swing, Turtle Soup, MSS, BOS, CHOCH, Order Block, Breaker, FVG, Imbalance, Liquidity Void, PD Array)
-• Wyckoff 2.0 + Spring/Upthrust + Phase C Shakeout + Re-accumulation
-• Volume Profile (Composite + Fixed Range + Session) + Order Flow + Delta + Footprint
-• Elliott + Neo Wave + Harmonic + Advanced Fibonacci (Expansion, Extension, Cluster)
-• Pure Price Action + Market Structure + Institutional Manipulation Engineering
-• On-chain (whale wallets, exchange flow, SOPR, MVRV, Puell) + Funding Rate + OI + CVD + Long/Short Ratio
-• Market Maker psikolojisi: Stop hunt, inducement, equal highs/lows, liquidity engineering, phase A-B-C-D
+${langInst}
 
-Her analizde mutlaka şu kuralları uygula:
-1. Market Maker Lens: "Ben MM olsam şu anda ne yapardım?"
-2. 8 katmanlı analiz: HTF → Price Action → Volume → Liquidity → Fibonacci → Multi-TF → On-chain → Meta İçgörü
+ÇIKTI FORMATI ZORUNLU — HİÇBİR SATIR ATLANMAYACAK, MARKDOWN YOK, BOLD YOK, # YOK, HER DEĞER AYNI SATIRDA:
 
-ÇIKTI FORMATI — HİÇBİR SATIRI ATLAMA:
+🔱 CHARTOS APEX 4.0 – ULTRA ELITE META ALGORITHM AKTİF 🔱
 
-🔱 CHARTOS MODU – META ULTRA ELİT AKTİF 🔱
+MARKET MAKER LENS
+Varlık: [COIN]/USDT
+Güncel Fiyat: [GERÇEK FİYAT]
+Ana Timeframe: 1H / 4H / 15M (multi-TF teyitli)
+DeepTrade Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %[XX] | HTF Bias: [bias] | Edge Skoru: [X.XX] | Win Probability: %[XX] (backtest)
 
-Market Maker Lens:
-Varlık: [coin/USDT]
-Güncel Fiyat: [GERÇEK FİYATI KULLAN]
-Ana Timeframe: 1H / 4H / 1D
-DeepTrader Bias: [Aşırı Boğa / Boğa / Nötr / Ayı / Aşırı Ayı] | Güven: %XX | HTF Bias: [bias]
+PİYASA YAPISI (MM Algoritması Gözüyle)
+HTF Bias & Son Değişim: [açıklama]
+Mevcut BOS / CHOCH / MSS: [açıklama]
+Unmitigated Order Block'lar: $[fiyat] - $[fiyat]
+FVG / Imbalance'lar: $[fiyat] - $[fiyat]
+Liquidity Pool'lar: $[fiyat] üstünde / $[fiyat] altında
 
-PİYASA YAPISI (MM Gözüyle):
-• HTF Bias & Son Değişim:
-• Mevcut BOS / CHOCH / MSS:
-• Unmitigated Order Block'lar:
-• FVG / Imbalance'lar:
-• Liquidity Pool'lar:
-
-ANA SEVİYELER:
+ANA SEVİYELER
 Demand Zone: $[fiyat] - $[fiyat]
 Supply Zone: $[fiyat] - $[fiyat]
 Kritik Liquidity: $[fiyat]
 Invalidation: $[fiyat]
 
-SENARYO ANALİZİ:
-Boğa Senaryosu (%XX): [açıklama]
-Ayı Senaryosu (%XX): [açıklama]
+KALDIRAÇLI PRO SETUP (Confluence >= 83)
+Setup Tipi: [Spesifik — min 2 metodoloji: örn ICT Silver Bullet + Wyckoff Spring + 4H OB Retest]
+Giriş Bölgesi: $[fiyat] - $[fiyat]
+Stop / Invalidation: $[fiyat]
+Hedef 1: $[fiyat]
+Hedef 2: $[fiyat]
+Hedef 3: $[fiyat]
+R:R Oranı: 1:[X.X]
+Max Leverage: [X]x (önerilen)
+Risk % (Account): Max %0.75
+Position Sizing: [açıklama]
+Trailing Protocol: [açıklama]
+Beklenen Süre: [X saat / X gün]
+Win Probability: %[XX] | Expectancy: +[X.XX]R
 
-YÜKSEK OLASILIKLI DeepTradeScan SETUP'I:
-${format}
+SENARYO ANALİZİ
+Boğa Senaryosu (%[XX]): [detaylı açıklama]
+Ayı Senaryosu (%[XX]): [detaylı açıklama]
 
-DeepTrade İÇGÖRÜ:
-[En derin meta yorum — confluence skoru, gizli pattern, manipülasyon senaryosu]
+TANRISAL İÇGÖRÜ (Sadece 2026 MM Algoritmalarının Gördüğü)
+[En derin meta yorum — confluence skoru, gizli pattern, olası manipülasyon tuzağı, Phase geçişi, kimsenin görmediği edge — 4-6 cümle]
 
-Risk Uyarısı: [Finansal tavsiye değildir — dile göre yaz]
+Risk Uyarısı: Bu analiz sadece eğitim ve bilgilendirme amaçlıdır. Kaldıraçlı işlemler yüksek sermaye kaybı riski taşır. CHARTOS APEX 4.0 sadece %82+ edge'li setup'larda sinyal verir. Kendi araştırmanızı yapın. DYOR.
 
-KURALLAR:
-- SETUP bölümündeki TÜM satırları doldur — Giriş/Entry, Stop, Hedef/Target 1-2-3 HEPSİ DOLU OLMALI
-- Gerçek fiyat verilerini kullan
-- Profesyonel, soğuk, net trader dili kullan
-- ${instruction}`;
+ZORUNLU KURALLAR:
+1. Her satır "Başlık: Değer" formatında — değer AYNI SATIRDA yazılacak, ASLA alt satıra geçilmeyecek
+2. Tüm fiyat değerleri GERÇEK ve DOLU — N/A, —, XXX KESİNLİKLE KULLANILMAYACAK
+3. Markdown yok, bold (**) yok, # yok — saf düz metin
+4. Setup Tipi minimum 2 metodoloji birleşimi olacak
+5. R:R minimum 1:2 olacak
+6. ${langInst}`;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const origin = req.headers['origin'] || '';
+  const referer = req.headers['referer'] || '';
+  const ua = req.headers['user-agent'] || '';
+  const allowed = ['https://deeptradescan.com', 'https://www.deeptradescan.com', 'http://localhost:3000'];
+  const isAllowed = allowed.some(o => origin.startsWith(o) || referer.startsWith(o)) || ua.includes('DeepTradeScan-Bot');
+  if (!isAllowed && process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Erişim reddedildi' });
+  }
+
   const { coin, lang = 'TR' } = req.body;
   if (!coin) return res.status(400).json({ error: 'Coin gerekli' });
 
   const symbol = coin.toUpperCase().trim();
-  const validLang = ['TR','EN','DE','FR'].includes(lang) ? lang : 'TR';
+  const validLang = ['TR', 'EN', 'DE', 'FR'].includes(lang) ? lang : 'TR';
+  const cacheKey = `apex4:${symbol}:${validLang}`;
 
-  // Cache key dile göre ayrı
-  const cacheKey = `chartos:${symbol}:${validLang}`;
   const cached = await redisGet(cacheKey);
   if (cached) return res.status(200).json({ ...cached, _cached: true });
 
@@ -217,20 +212,21 @@ export default async function handler(req, res) {
 
   const map = await getGeckoMap();
   const coinInfo = map[symbol];
-  let priceData = null;
-  if (coinInfo) priceData = await getLivePrice(coinInfo.id);
+  let pd = null;
+  if (coinInfo) pd = await getLivePrice(coinInfo.id);
 
-  const priceStr = priceData
-    ? `REAL-TIME DATA:
+  const priceStr = pd
+    ? `CANLI VERİ [${new Date().toUTCString()}]:
 Coin: ${symbol} (${coinInfo?.name || symbol})
-Current Price: ${fmtPrice(priceData.price)}
-24h Change: ${priceData.change24h?.toFixed(2)}%
-24h High: ${fmtPrice(priceData.high24h)}
-24h Low: ${fmtPrice(priceData.low24h)}
-Volume: ${fmtVol(priceData.volume24h)}
-Market Cap: ${fmtVol(priceData.marketCap)}
-ATH: ${fmtPrice(priceData.ath)} (${priceData.athChange?.toFixed(1)}% from ATH)`
-    : `Coin: ${symbol} (no price data)`;
+Anlık Fiyat: ${fmtPrice(pd.price)}
+24s Değişim: ${pd.change24h?.toFixed(2)}%
+7g Değişim: ${pd.change7d?.toFixed(2)}%
+24s Yüksek: ${fmtPrice(pd.high24h)}
+24s Düşük: ${fmtPrice(pd.low24h)}
+Hacim (24s): ${fmtVol(pd.volume24h)}
+Market Cap: ${fmtVol(pd.marketCap)}
+ATH: ${fmtPrice(pd.ath)} (ATH'den %${Math.abs(pd.athChange?.toFixed(1))} uzakta)`
+    : `Coin: ${symbol}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -242,12 +238,28 @@ ATH: ${fmtPrice(priceData.ath)} (${priceData.athChange?.toFixed(1)}% from ATH)`
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
-        temperature: 0.3,
+        max_tokens: 5000,
+        temperature: 0.2,
         system: getSystemPrompt(validLang),
         messages: [{
           role: 'user',
-          content: `${priceStr}\n\nAnalyze ${symbol} now. Fill ALL fields in SETUP section — Entry, Stop, Target 1, Target 2, Target 3 must ALL be filled. Write in ${validLang === 'TR' ? 'Turkish' : validLang === 'EN' ? 'English' : validLang === 'DE' ? 'German' : 'French'}.`
+          content: `${priceStr}
+
+${symbol} için CHARTOS APEX 4.0 ile ULTRA ELITE analiz yap. 10 katmanlı chain-of-thought'u eksiksiz uygula.
+
+KESİNLİKLE ZORUNLU — SETUP bölümündeki tüm satırlar dolu ve AYNI SATIRDA olacak:
+Setup Tipi: [değer]
+Giriş Bölgesi: $[fiyat] - $[fiyat]
+Stop / Invalidation: $[fiyat]
+Hedef 1: $[fiyat]
+Hedef 2: $[fiyat]
+Hedef 3: $[fiyat]
+R:R Oranı: 1:[X.X]
+Max Leverage: [X]x
+Beklenen Süre: [X saat / X gün]
+Win Probability: %[XX] | Expectancy: +[X.XX]R
+
+Markdown kullanma. # kullanma. Bold (**) kullanma. Düz metin.`
         }]
       })
     });
@@ -264,7 +276,8 @@ ATH: ${fmtPrice(priceData.ath)} (${priceData.athChange?.toFixed(1)}% from ATH)`
       coin: symbol,
       analysis,
       lang: validLang,
-      price: priceData ? fmtPrice(priceData.price) : null,
+      price: pd ? fmtPrice(pd.price) : null,
+      change24h: pd?.change24h,
       timestamp: new Date().toISOString()
     };
 
