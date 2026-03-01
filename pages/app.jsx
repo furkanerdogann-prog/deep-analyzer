@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 const SUPABASE_URL = 'https://hgijvoqarkkcebccvzxf.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnaWp2b3FhcmtrY2ViY2N2enhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMDMzMjYsImV4cCI6MjA4Nzg3OTMyNn0.CvOeVcVxainTIHG_Zo7sa9fZWLzCpYq1Cm0zwlkqXYs';
@@ -18,23 +18,16 @@ const COINS = [
 ];
 
 const PLANS = {
-  free:  { name:'FREE',  price:'$0',    color:'#475569', bg:'rgba(71,85,105,0.15)',  border:'rgba(71,85,105,0.3)',  limit:3,      features:['Günlük 3 Analiz','CHARTOS APEX 4.0','Temel Sinyal'] },
-  pro:   { name:'PRO',   price:'$100',  color:'#1a6aff', bg:'rgba(26,106,255,0.12)', border:'rgba(26,106,255,0.4)', limit:999999, features:['Sınırsız Analiz','Öncelikli Kuyruk','Özel Telegram Grubu','Portföy Takibi','7/24 Destek'] },
-  elite: { name:'ELITE', price:'$500',  color:'#a855f7', bg:'rgba(168,85,247,0.12)', border:'rgba(168,85,247,0.4)', limit:999999, features:['Her Şey Pro\'da +','1-1 Özel Danışmanlık','Kişisel Portföy Yönetimi','Özel Telegram Kanalı','VIP Sinyal Önceliği','Aylık Strateji Toplantısı'] },
+  free:  { name:'FREE',  price:'$0/ay',   color:'#64748b', glow:'rgba(100,116,139,0.2)', features:['Günlük 3 Analiz','CHARTOS APEX 4.0','Temel Sinyaller','Topluluk Erişimi'] },
+  pro:   { name:'PRO',   price:'$100/ay', color:'#3b82f6', glow:'rgba(59,130,246,0.25)', features:['Sınırsız Analiz','Öncelikli İşlem','Özel Telegram Grubu','Portföy Takip Sistemi','7/24 Öncelikli Destek','Özel Raporlar'] },
+  elite: { name:'ELITE', price:'$500/ay', color:'#a855f7', glow:'rgba(168,85,247,0.3)',  features:['Pro\'daki Her Şey','1-1 Özel Danışmanlık','Kişisel Portföy Yönetimi','VIP Telegram Kanalı','Aylık Strateji Toplantısı','Dedicatd Account Manager','Kurumsal API Erişimi'] },
 };
 
-const T = {
-  TR:{ flag:'🇹🇷', login:'Giriş Yap', register:'Kayıt Ol', logout:'Çıkış', email:'E-posta', password:'Şifre', name:'Ad Soyad', analyze:'Analiz Et', searching:'Analiz ediliyor...', noResult:'Coin bulunamadı', daily:'Günlük Kota', remaining:'Kalan', upgrade:'Yükselt', planTitle:'Plan Seç', footer:'Bu analiz finansal tavsiye değildir. DYOR.' },
-  EN:{ flag:'🇬🇧', login:'Login', register:'Register', logout:'Logout', email:'Email', password:'Password', name:'Full Name', analyze:'Analyze', searching:'Analyzing...', noResult:'No coin found', daily:'Daily Quota', remaining:'Remaining', upgrade:'Upgrade', planTitle:'Choose Plan', footer:'This is not financial advice. DYOR.' },
-};
-
-// ─── PARSE ──────────────────────────────────────────────────────────────────
 function parseAnalysis(text) {
   if (!text) return [];
   const clean = text.replace(/\*\*/g,'').replace(/\*/g,'').replace(/#{1,6}\s*/g,'');
   const lines = clean.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  const sections = [];
-  let current = null;
+  const sections = []; let current = null;
   const isHeader = l => l.match(/CHARTOS APEX|CHARTOS MODU/i);
   const isSect   = l => l.match(/^(MARKET MAKER LENS|PİYASA YAPISI|ANA SEVİYELER|KALDIRAÇLI PRO SETUP|SENARYO ANALİZİ|TANRISAL İÇGÖRÜ|Risk Uyarısı)/i);
   const isKV     = l => l.match(/^(Varlık|Güncel Fiyat|Ana Timeframe|DeepTrade Bias|Edge Skoru|Win Probability|HTF Bias|Mevcut BOS|Unmitigated|FVG|Liquidity Pool|Demand Zone|Supply Zone|Kritik Liquidity|Invalidation|Setup Tipi|Giriş Bölgesi|Stop|Hedef [123]|R:R|Max Leverage|Risk %|Position Sizing|Trailing|Beklenen Süre|Expectancy|Boğa Senaryosu|Ayı Senaryosu):/i);
@@ -52,33 +45,32 @@ function parseAnalysis(text) {
 
 function sectionMeta(title='') {
   const t = title.toUpperCase();
-  if (t.includes('MARKET MAKER')) return {icon:'🎯',color:'#7c3aed',bg:'rgba(124,58,237,0.10)',border:'rgba(124,58,237,0.35)'};
-  if (t.includes('PİYASA'))       return {icon:'📊',color:'#3b82f6',bg:'rgba(59,130,246,0.08)',border:'rgba(59,130,246,0.30)'};
-  if (t.includes('SEVİYE'))       return {icon:'📍',color:'#06b6d4',bg:'rgba(6,182,212,0.08)',border:'rgba(6,182,212,0.30)'};
-  if (t.includes('SETUP')||t.includes('KALDIRAÇLI')) return {icon:'⚡',color:'#10b981',bg:'rgba(16,185,129,0.10)',border:'rgba(16,185,129,0.35)'};
-  if (t.includes('SENARYO'))      return {icon:'🎭',color:'#f59e0b',bg:'rgba(245,158,11,0.08)',border:'rgba(245,158,11,0.30)'};
-  if (t.includes('İÇGÖRÜ')||t.includes('TANRISAL')) return {icon:'🔮',color:'#a855f7',bg:'rgba(168,85,247,0.10)',border:'rgba(168,85,247,0.35)'};
-  if (t.includes('RISK'))         return {icon:'⚠️',color:'#ef4444',bg:'rgba(239,68,68,0.08)',border:'rgba(239,68,68,0.25)'};
-  return {icon:'📋',color:'#475569',bg:'rgba(148,163,184,0.05)',border:'rgba(148,163,184,0.20)'};
+  if (t.includes('MARKET MAKER')) return {icon:'⬡',color:'#8b5cf6',border:'rgba(139,92,246,0.3)',bg:'rgba(139,92,246,0.05)'};
+  if (t.includes('PİYASA'))       return {icon:'◈',color:'#3b82f6',border:'rgba(59,130,246,0.25)',bg:'rgba(59,130,246,0.04)'};
+  if (t.includes('SEVİYE'))       return {icon:'◎',color:'#06b6d4',border:'rgba(6,182,212,0.25)',bg:'rgba(6,182,212,0.04)'};
+  if (t.includes('SETUP')||t.includes('KALDIRAÇLI')) return {icon:'◆',color:'#10b981',border:'rgba(16,185,129,0.3)',bg:'rgba(16,185,129,0.05)'};
+  if (t.includes('SENARYO'))      return {icon:'◐',color:'#f59e0b',border:'rgba(245,158,11,0.25)',bg:'rgba(245,158,11,0.04)'};
+  if (t.includes('İÇGÖRÜ')||t.includes('TANRISAL')) return {icon:'◉',color:'#a855f7',border:'rgba(168,85,247,0.3)',bg:'rgba(168,85,247,0.05)'};
+  if (t.includes('RISK'))         return {icon:'△',color:'#ef4444',border:'rgba(239,68,68,0.25)',bg:'rgba(239,68,68,0.04)'};
+  return {icon:'○',color:'#475569',border:'rgba(71,85,105,0.2)',bg:'rgba(71,85,105,0.03)'};
 }
 
-function kvColor(key='') {
+function kvStyle(key='') {
   const k = key.toLowerCase();
-  if (k.includes('giriş')||k.includes('entry'))   return {c:'#10b981',bg:'rgba(16,185,129,0.08)'};
-  if (k.includes('stop')||k.includes('invalid'))  return {c:'#ef4444',bg:'rgba(239,68,68,0.08)'};
-  if (k.includes('hedef 1')||k.includes('target 1')) return {c:'#06b6d4',bg:'rgba(6,182,212,0.07)'};
-  if (k.includes('hedef 2')||k.includes('target 2')) return {c:'#22d3ee',bg:'rgba(34,211,238,0.06)'};
-  if (k.includes('hedef 3')||k.includes('target 3')) return {c:'#67e8f9',bg:'rgba(103,232,249,0.05)'};
-  if (k.includes('r:r'))                          return {c:'#a78bfa',bg:'rgba(167,139,250,0.08)'};
-  if (k.includes('bias')||k.includes('win prob')||k.includes('edge')) return {c:'#f59e0b',bg:'rgba(245,158,11,0.08)'};
-  if (k.includes('max leverage'))                 return {c:'#fb923c',bg:'rgba(251,146,60,0.08)'};
-  if (k.includes('setup tipi'))                   return {c:'#818cf8',bg:'rgba(129,140,248,0.08)'};
-  if (k.includes('demand'))                       return {c:'#34d399',bg:'rgba(52,211,153,0.06)'};
-  if (k.includes('supply'))                       return {c:'#f87171',bg:'rgba(248,113,113,0.06)'};
-  return {c:'#94a3b8',bg:'transparent'};
+  if (k.includes('giriş'))   return '#10b981';
+  if (k.includes('stop'))    return '#ef4444';
+  if (k.includes('hedef 1')) return '#06b6d4';
+  if (k.includes('hedef 2')) return '#0ea5e9';
+  if (k.includes('hedef 3')) return '#38bdf8';
+  if (k.includes('r:r'))     return '#a78bfa';
+  if (k.includes('bias')||k.includes('win prob')||k.includes('edge')) return '#f59e0b';
+  if (k.includes('leverage')) return '#fb923c';
+  if (k.includes('setup'))   return '#818cf8';
+  if (k.includes('demand'))  return '#34d399';
+  if (k.includes('supply'))  return '#f87171';
+  return '#94a3b8';
 }
 
-// ─── API HELPERS ─────────────────────────────────────────────────────────────
 async function apiAuth(action, body={}, token=null) {
   const headers = {'Content-Type':'application/json'};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -86,52 +78,32 @@ async function apiAuth(action, body={}, token=null) {
   return r.json();
 }
 
-async function supabaseSignInGoogle() {
-  const r = await fetch(`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+'/app')}`, {
-    headers: {'apikey': SUPABASE_ANON}
-  });
-  // Redirect
-  const url = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+'/app')}`;
-  window.location.href = url;
-}
-
-// ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function App() {
   const [lang, setLang] = useState('TR');
-  const t = T[lang] || T.TR;
-
-  // AUTH STATE
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [authMode, setAuthMode] = useState('login'); // login | register | plans
+  const [authMode, setAuthMode] = useState('login');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [form, setForm] = useState({email:'',password:'',name:''});
-
-  // APP STATE
   const [coin, setCoin] = useState('BTC');
   const [search, setSearch] = useState('');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [drawer, setDrawer] = useState(false);
   const [copied, setCopied] = useState(false);
   const [recent, setRecent] = useState([]);
   const [quota, setQuota] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
 
   const sections = parseAnalysis(result);
 
-  // Oturum yükle
   useEffect(() => {
     const stored = localStorage.getItem('dts_session');
     if (stored) {
-      try {
-        const s = JSON.parse(stored);
-        setSession(s);
-        loadProfile(s.access_token);
-      } catch {}
+      try { const s=JSON.parse(stored); setSession(s); loadProfile(s.access_token); } catch {}
     }
-    // Google callback kontrolü
     const hash = window.location.hash;
     if (hash.includes('access_token')) {
       const params = new URLSearchParams(hash.substring(1));
@@ -140,8 +112,7 @@ export default function App() {
       if (access_token) {
         const s = {access_token, refresh_token};
         localStorage.setItem('dts_session', JSON.stringify(s));
-        setSession(s);
-        loadProfile(access_token);
+        setSession(s); loadProfile(access_token);
         window.location.hash = '';
       }
     }
@@ -153,7 +124,7 @@ export default function App() {
       setProfile(d.profile);
       const today = new Date().toISOString().split('T')[0];
       const used = d.profile.last_analysis_date === today ? d.profile.daily_analyses : 0;
-      const limit = PLANS[d.profile.plan]?.limit || 3;
+      const limit = d.profile.plan === 'free' ? 3 : 999999;
       setQuota({used, limit, plan: d.profile.plan});
     }
   }
@@ -165,20 +136,24 @@ export default function App() {
     setAuthLoading(false);
     if (d.error) { setAuthError(d.error); return; }
     localStorage.setItem('dts_session', JSON.stringify(d.session));
-    setSession(d.session);
-    loadProfile(d.session.access_token);
+    setSession(d.session); loadProfile(d.session.access_token);
   }
 
   async function handleRegister(e) {
     e?.preventDefault();
     if (!form.email||!form.password) { setAuthError('Tüm alanları doldurun'); return; }
-    if (form.password.length < 6) { setAuthError('Şifre en az 6 karakter olmalı'); return; }
+    if (form.password.length < 6) { setAuthError('Şifre en az 6 karakter'); return; }
     setAuthLoading(true); setAuthError('');
     const d = await apiAuth('register', {email:form.email, password:form.password, full_name:form.name});
     setAuthLoading(false);
     if (d.error) { setAuthError(d.error); return; }
-    // Otomatik giriş yap
-    await handleLogin();
+    if (d.session) {
+      localStorage.setItem('dts_session', JSON.stringify(d.session));
+      setSession(d.session); loadProfile(d.session.access_token);
+    } else {
+      setAuthError('Kayıt başarılı. Lütfen giriş yapın.');
+      setAuthMode('login');
+    }
   }
 
   function handleLogout() {
@@ -187,30 +162,20 @@ export default function App() {
   }
 
   async function handleAnalyze(symbol) {
-    if (!session) { setAuthMode('login'); return; }
     const s = symbol || coin;
-    setResult(''); setError(''); setLoading(true); setDrawer(false);
-
-    // Kota kontrol
+    setResult(''); setError(''); setLoading(true);
     const check = await apiAuth('check-analysis', {}, session.access_token);
     if (check.error && check.upgrade) {
-      setLoading(false);
-      setError(`Günlük ${check.limit} analiz hakkınız doldu. Pro'ya geçin → Sınırsız analiz!`);
-      setAuthMode('plans');
+      setLoading(false); setShowPlans(true);
+      setError(`Günlük ${check.limit} analiz hakkınız doldu.`);
       return;
     }
     if (check.error) {
       setLoading(false);
-      if (check.error.includes('oturum')||check.error.includes('Token')) {
-        handleLogout();
-        setAuthMode('login');
-      }
-      setError(check.error);
-      return;
+      if (check.error.includes('oturum')||check.error.includes('Token')) { handleLogout(); return; }
+      setError(check.error); return;
     }
-
     setQuota({used:check.used, limit:check.limit, plan:check.plan, remaining:check.remaining});
-
     try {
       const r = await fetch('/api/analyze', {
         method:'POST',
@@ -221,382 +186,444 @@ export default function App() {
       if (data.analysis) {
         setResult(data.analysis);
         fetch('/api/recent').then(r=>r.json()).then(d=>setRecent(d.recent||[])).catch(()=>{});
-      } else {
-        setError(data.error || 'Analiz alınamadı');
-      }
+      } else setError(data.error || 'Analiz alınamadı');
     } catch { setError('Bağlantı hatası'); }
     setLoading(false);
   }
 
   const filtered = COINS.filter(c=>c.includes(search.toUpperCase()));
+  const planInfo = PLANS[profile?.plan || 'free'];
 
-  // ─── AUTH SCREEN ──────────────────────────────────────────────────────────
+  const CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { font-family: 'Space Grotesk', sans-serif; background: #020509; color: #e2e8f0; }
+    body { min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #020509; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes glow { 0%,100% { box-shadow: 0 0 20px rgba(59,130,246,0.3); } 50% { box-shadow: 0 0 40px rgba(59,130,246,0.6); } }
+    @keyframes scanline { 0% { top: -100%; } 100% { top: 200%; } }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .auth-card { animation: fadeUp 0.5s ease; }
+    .section-card { animation: fadeUp 0.3s ease; }
+    .btn-primary { transition: all 0.2s ease; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(59,130,246,0.4); }
+    .coin-btn:hover { border-color: rgba(59,130,246,0.5) !important; color: #93c5fd !important; transform: translateY(-1px); }
+    .coin-btn { transition: all 0.15s ease; }
+    .inp { width: 100%; background: #0a1628; border: 1px solid #1e293b; border-radius: 10px; color: #e2e8f0; padding: 13px 16px; font-size: 14px; font-family: 'Space Grotesk', sans-serif; outline: none; transition: border-color 0.2s; }
+    .inp:focus { border-color: #3b82f6; }
+    .inp::placeholder { color: #334155; }
+    .tab-btn { transition: all 0.2s; flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.5px; }
+    .recent-row:hover { background: rgba(59,130,246,0.06) !important; cursor: pointer; }
+    .recent-row { transition: background 0.2s; }
+    @media (min-width: 1024px) {
+      .app-layout { display: grid; grid-template-columns: 260px 1fr 380px; grid-template-rows: 60px 1fr; min-height: 100vh; }
+      .top-bar { grid-column: 1 / -1; }
+      .left-panel { grid-row: 2; overflow-y: auto; border-right: 1px solid #0f1923; }
+      .center-panel { grid-row: 2; overflow-y: auto; }
+      .right-panel { grid-row: 2; overflow-y: auto; border-left: 1px solid #0f1923; }
+      .mobile-only { display: none !important; }
+    }
+    @media (max-width: 1023px) {
+      .desktop-only { display: none !important; }
+      .app-layout { display: flex; flex-direction: column; min-height: 100vh; }
+    }
+  `;
+
+  // ── AUTH SCREEN ─────────────────────────────────────────────────────────────
   if (!session) {
-    return (
-      <div style={{minHeight:'100vh',background:'#04070F',color:'#f1f5f9',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'20px'}}>
-        <style>{`
-          @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-          @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(26,106,255,0.3)}50%{box-shadow:0 0 40px rgba(26,106,255,0.6)}}
-          input{background:#0a1220!important;border:1px solid #0f1923!important;border-radius:12px!important;color:#f1f5f9!important;padding:14px 16px!important;width:100%!important;font-size:14px!important;outline:none!important;box-sizing:border-box!important;transition:border-color .2s!important}
-          input:focus{border-color:#1a6aff!important}
-        `}</style>
-
-        {/* Logo */}
-        <div style={{textAlign:'center',marginBottom:32,animation:'fadeIn .5s ease'}}>
-          <img src="/logo.webp" style={{width:64,height:64,borderRadius:18,objectFit:'cover',marginBottom:12}} alt="DTS"/>
-          <div style={{fontSize:22,fontWeight:900,letterSpacing:2}}>DEEP TRADE SCAN</div>
-          <div style={{fontSize:11,color:'#1a6aff',letterSpacing:3,marginTop:4}}>CHARTOS APEX 4.0</div>
-        </div>
-
-        {/* Plan seçim modal */}
-        {authMode === 'plans' ? (
-          <div style={{width:'100%',maxWidth:420,animation:'fadeIn .3s ease'}}>
-            <div style={{textAlign:'center',marginBottom:24}}>
-              <div style={{fontSize:18,fontWeight:900,marginBottom:6}}>Plan Seç</div>
-              <div style={{fontSize:12,color:'#475569'}}>Günlük analizinizi artırın</div>
+    if (showPlans || authMode === 'plans') {
+      return (
+        <div style={{minHeight:'100vh',background:'#020509',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <style>{CSS}</style>
+          <div style={{width:'100%',maxWidth:860,animation:'fadeUp 0.4s ease'}}>
+            <div style={{textAlign:'center',marginBottom:40}}>
+              <div style={{fontSize:13,color:'#3b82f6',letterSpacing:4,fontWeight:600,marginBottom:10}}>MEMBERSHIP</div>
+              <div style={{fontSize:32,fontWeight:700,letterSpacing:-0.5}}>Planınızı Seçin</div>
+              <div style={{fontSize:14,color:'#475569',marginTop:8}}>CHARTOS APEX 4.0 ile kurumsal seviyede analiz</div>
             </div>
-            {Object.entries(PLANS).map(([key,plan])=>(
-              <div key={key} style={{background:plan.bg,border:`1px solid ${plan.border}`,borderRadius:16,padding:20,marginBottom:12,animation:'fadeIn .3s ease'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                  <div style={{fontSize:16,fontWeight:900,color:plan.color}}>{plan.name}</div>
-                  <div style={{fontSize:20,fontWeight:900,color:plan.color}}>{plan.price}<span style={{fontSize:11,color:'#475569'}}>/ay</span></div>
-                </div>
-                {plan.features.map((f,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-                    <span style={{color:plan.color,fontSize:12}}>✓</span>
-                    <span style={{fontSize:12,color:'#94a3b8'}}>{f}</span>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:20,marginBottom:32}}>
+              {Object.entries(PLANS).map(([key,plan])=>(
+                <div key={key} style={{background:'#080f1a',border:`1px solid ${key==='pro'?plan.color+'50':'#0f1923'}`,borderRadius:16,padding:28,position:'relative',overflow:'hidden',boxShadow:key==='pro'?`0 0 40px ${plan.glow}`:'none'}}>
+                  {key==='pro'&&<div style={{position:'absolute',top:14,right:14,background:'#3b82f6',borderRadius:6,padding:'3px 10px',fontSize:10,fontWeight:700,letterSpacing:1}}>POPÜLER</div>}
+                  <div style={{fontSize:11,color:plan.color,letterSpacing:3,fontWeight:700,marginBottom:8}}>{plan.name}</div>
+                  <div style={{fontSize:28,fontWeight:700,color:'#f1f5f9',marginBottom:20,fontFamily:"'JetBrains Mono',monospace"}}>{plan.price}</div>
+                  <div style={{borderTop:'1px solid #0f1923',paddingTop:20,marginBottom:24}}>
+                    {plan.features.map((f,i)=>(
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                        <div style={{width:16,height:16,borderRadius:4,background:plan.color+'20',border:`1px solid ${plan.color}40`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          <div style={{width:5,height:5,borderRadius:'50%',background:plan.color}}/>
+                        </div>
+                        <span style={{fontSize:12,color:'#94a3b8'}}>{f}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {key!=='free'&&(
-                  <button onClick={()=>alert('Ödeme sistemi yakında aktif olacak. İletişim: @deeptradescan')}
-                    style={{width:'100%',marginTop:14,background:plan.color,border:'none',borderRadius:10,padding:'12px',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'}}>
-                    {plan.name} Seç →
-                  </button>
-                )}
-              </div>
-            ))}
-            <button onClick={()=>setAuthMode('login')} style={{width:'100%',background:'transparent',border:'1px solid #0f1923',borderRadius:10,padding:12,color:'#475569',fontSize:12,cursor:'pointer',marginTop:8}}>← Geri Dön</button>
+                  {key==='free'
+                    ? <button onClick={()=>setShowPlans(false)} style={{width:'100%',background:'#0f1923',border:'1px solid #1e293b',borderRadius:10,padding:'12px',color:'#64748b',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>Ücretsiz Devam Et</button>
+                    : <button onClick={()=>alert('Ödeme sistemi aktif oluyor. İletişim: @deeptradescan')} style={{width:'100%',background:`linear-gradient(135deg,${plan.color},${plan.color}cc)`,border:'none',borderRadius:10,padding:'13px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>{plan.name} Planını Başlat →</button>
+                  }
+                </div>
+              ))}
+            </div>
+            <div style={{textAlign:'center'}}>
+              <button onClick={()=>setShowPlans(false)} style={{background:'none',border:'none',color:'#475569',fontSize:13,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>← Geri dön</button>
+            </div>
           </div>
-        ) : (
-          <div style={{width:'100%',maxWidth:380,background:'#080c14',border:'1px solid #0f1923',borderRadius:20,padding:28,animation:'fadeIn .4s ease',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
-            {/* Tab */}
-            <div style={{display:'flex',background:'#04070F',borderRadius:12,padding:4,marginBottom:24}}>
-              {['login','register'].map(m=>(
-                <button key={m} onClick={()=>{setAuthMode(m);setAuthError('');}}
-                  style={{flex:1,padding:'10px',border:'none',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,
-                    background:authMode===m?'#1a6aff':'transparent',
-                    color:authMode===m?'#fff':'#475569',transition:'all .2s'}}>
-                  {m==='login'?t.login:t.register}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{minHeight:'100vh',background:'#020509',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',position:'relative',overflow:'hidden'}}>
+        <style>{CSS}</style>
+        {/* BG Grid */}
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px)',backgroundSize:'60px 60px',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',top:'20%',left:'50%',transform:'translateX(-50%)',width:600,height:600,background:'radial-gradient(ellipse,rgba(59,130,246,0.06) 0%,transparent 70%)',pointerEvents:'none'}}/>
+
+        <div style={{width:'100%',maxWidth:420,position:'relative',zIndex:1}} className="auth-card">
+          {/* Logo — sadece 1 tane */}
+          <div style={{textAlign:'center',marginBottom:40}}>
+            <div style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:64,height:64,borderRadius:18,background:'linear-gradient(135deg,#0f1f3d,#1a3a6a)',border:'1px solid rgba(59,130,246,0.3)',marginBottom:16,boxShadow:'0 0 30px rgba(59,130,246,0.2)'}}>
+              <img src="/logo.webp" style={{width:40,height:40,borderRadius:10,objectFit:'cover'}} alt="DTS" onError={e=>{e.target.style.display='none';}}/>
+            </div>
+            <div style={{fontSize:20,fontWeight:700,letterSpacing:1,color:'#f1f5f9'}}>DEEP TRADE SCAN</div>
+            <div style={{fontSize:10,color:'#3b82f6',letterSpacing:4,marginTop:4,fontWeight:600}}>CHARTOS APEX 4.0</div>
+          </div>
+
+          {/* Card */}
+          <div style={{background:'#080f1a',border:'1px solid #0f1923',borderRadius:20,padding:32,boxShadow:'0 25px 60px rgba(0,0,0,0.5)'}}>
+            {/* Tabs */}
+            <div style={{display:'flex',background:'#020509',borderRadius:12,padding:4,marginBottom:28,gap:4}}>
+              {[['login','Giriş Yap'],['register','Kayıt Ol']].map(([m,label])=>(
+                <button key={m} className="tab-btn" onClick={()=>{setAuthMode(m);setAuthError('');}}
+                  style={{background:authMode===m?'#0f1f3d':'transparent',color:authMode===m?'#60a5fa':'#475569',border:authMode===m?'1px solid rgba(59,130,246,0.3)':'1px solid transparent'}}>
+                  {label}
                 </button>
               ))}
             </div>
 
-            {/* Form */}
-            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
               {authMode==='register'&&(
                 <div>
-                  <div style={{fontSize:11,color:'#475569',marginBottom:6,letterSpacing:1}}>{t.name.toUpperCase()}</div>
-                  <input placeholder="Adınız Soyadınız" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+                  <label style={{fontSize:10,color:'#475569',letterSpacing:2,fontWeight:600,display:'block',marginBottom:7}}>AD SOYAD</label>
+                  <input className="inp" placeholder="Adınız Soyadınız" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
                 </div>
               )}
               <div>
-                <div style={{fontSize:11,color:'#475569',marginBottom:6,letterSpacing:1}}>{t.email.toUpperCase()}</div>
-                <input type="email" placeholder="ornek@email.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}
+                <label style={{fontSize:10,color:'#475569',letterSpacing:2,fontWeight:600,display:'block',marginBottom:7}}>E-POSTA</label>
+                <input className="inp" type="email" placeholder="ornek@email.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}
                   onKeyDown={e=>e.key==='Enter'&&(authMode==='login'?handleLogin():handleRegister())}/>
               </div>
               <div>
-                <div style={{fontSize:11,color:'#475569',marginBottom:6,letterSpacing:1}}>{t.password.toUpperCase()}</div>
-                <input type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}
+                <label style={{fontSize:10,color:'#475569',letterSpacing:2,fontWeight:600,display:'block',marginBottom:7}}>ŞİFRE</label>
+                <input className="inp" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}
                   onKeyDown={e=>e.key==='Enter'&&(authMode==='login'?handleLogin():handleRegister())}/>
               </div>
 
               {authError&&(
-                <div style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'#f87171'}}>{authError}</div>
+                <div style={{background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.25)',borderRadius:10,padding:'12px 14px',fontSize:12,color:'#f87171',lineHeight:1.5}}>{authError}</div>
               )}
 
-              <button onClick={authMode==='login'?handleLogin:handleRegister} disabled={authLoading}
-                style={{background:authLoading?'#1a3a6a':'linear-gradient(135deg,#1a6aff,#7c3aed)',border:'none',borderRadius:12,padding:'14px',color:'#fff',fontSize:14,fontWeight:800,cursor:authLoading?'wait':'pointer',animation:authLoading?'none':'glow 2s infinite',transition:'all .2s'}}>
-                {authLoading?'Yükleniyor...':authMode==='login'?'🔐 '+t.login:'🚀 '+t.register}
+              <button className="btn-primary" onClick={authMode==='login'?handleLogin:handleRegister} disabled={authLoading}
+                style={{background:authLoading?'#0f1f3d':'linear-gradient(135deg,#1d4ed8,#3b82f6)',border:'none',borderRadius:12,padding:'14px',color:'#fff',fontSize:14,fontWeight:700,cursor:authLoading?'wait':'pointer',fontFamily:"'Space Grotesk',sans-serif",letterSpacing:0.5,marginTop:4}}>
+                {authLoading
+                  ? <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',display:'inline-block',animation:'spin 0.7s linear infinite'}}/> Yükleniyor...</span>
+                  : authMode==='login' ? '→ Güvenli Giriş' : '→ Hesap Oluştur'
+                }
               </button>
 
-              <div style={{display:'flex',alignItems:'center',gap:8,margin:'4px 0'}}>
-                <div style={{flex:1,height:1,background:'#0f1923'}}/>
-                <span style={{fontSize:11,color:'#334155'}}>VEYA</span>
-                <div style={{flex:1,height:1,background:'#0f1923'}}/>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,height:1,background:'#0f1923'}}/><span style={{fontSize:10,color:'#1e293b',letterSpacing:1}}>VEYA</span><div style={{flex:1,height:1,background:'#0f1923'}}/>
               </div>
 
-              <button onClick={supabaseSignInGoogle}
-                style={{background:'#fff',border:'none',borderRadius:12,padding:'13px',color:'#1a1a1a',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
+              <button onClick={()=>{window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+'/app')}`;}}
+                style={{background:'#fff',border:'none',borderRadius:12,padding:'13px',color:'#111',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10,fontFamily:"'Space Grotesk',sans-serif"}}>
                 <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 0 1 4.5 7.52V5.45H1.83a8 8 0 0 0 0 7.1l2.67-2.07z"/><path fill="#EA4335" d="M8.98 3.58c1.32 0 2.5.45 3.44 1.35l2.54-2.54A8 8 0 0 0 1.83 5.45L4.5 7.52A4.77 4.77 0 0 1 8.98 3.58z"/></svg>
                 Google ile {authMode==='login'?'Giriş':'Kayıt'}
               </button>
             </div>
 
-            <div style={{textAlign:'center',marginTop:18}}>
-              <button onClick={()=>setAuthMode('plans')} style={{background:'none',border:'none',color:'#1a6aff',fontSize:12,cursor:'pointer'}}>
-                📊 Planları Görüntüle
+            <div style={{textAlign:'center',marginTop:20}}>
+              <button onClick={()=>setShowPlans(true)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:12,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>
+                Üyelik planlarını görüntüle →
               </button>
             </div>
           </div>
-        )}
+
+          <div style={{textAlign:'center',marginTop:20,fontSize:11,color:'#1e293b'}}>
+            ⚠️ Bu platform finansal tavsiye vermez. DYOR.
+          </div>
+        </div>
       </div>
     );
   }
 
-  // ─── MAIN APP (GİRİŞ YAPILMIŞ) ──────────────────────────────────────────
-  const planInfo = PLANS[profile?.plan || 'free'];
-
-  return (
-    <div style={{minHeight:'100vh',background:'#04070F',color:'#f1f5f9',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',maxWidth:480,margin:'0 auto',position:'relative'}}>
-      <style>{`
-        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-        @keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(0)}}
-        * {box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#04070F} ::-webkit-scrollbar-thumb{background:#0f1923;border-radius:2px}
-      `}</style>
-
-      {/* HEADER */}
-      <div style={{position:'sticky',top:0,zIndex:100,background:'rgba(4,7,15,0.95)',backdropFilter:'blur(12px)',borderBottom:'1px solid #0f1923',padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <button onClick={()=>setDrawer(true)} style={{background:'none',border:'none',cursor:'pointer',padding:4}}>
-          <div style={{display:'flex',flexDirection:'column',gap:4}}>
-            {[0,1,2].map(i=><div key={i} style={{width:i===1?16:22,height:2,background:'#475569',borderRadius:1}}/>)}
+  // ── MAIN APP ────────────────────────────────────────────────────────────────
+  const LeftPanel = () => (
+    <div style={{padding:'20px 16px',background:'#04080f'}}>
+      {/* User Card */}
+      <div style={{background:'#080f1a',border:'1px solid #0f1923',borderRadius:14,padding:16,marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+          <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${PLANS[profile?.plan||'free'].color}30,${PLANS[profile?.plan||'free'].color}10)`,border:`1px solid ${PLANS[profile?.plan||'free'].color}40`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:PLANS[profile?.plan||'free'].color}}>{(profile?.email||'U')[0].toUpperCase()}</div>
           </div>
-        </button>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <img src="/logo.webp" style={{width:28,height:28,borderRadius:8,objectFit:'cover'}} alt="DTS"/>
-          <div>
-            <div style={{fontSize:12,fontWeight:900,letterSpacing:1.5}}>DEEP TRADE SCAN</div>
-            <div style={{fontSize:8,color:'#1a6aff',letterSpacing:2}}>CHARTOS APEX 4.0</div>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:'#e2e8f0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.full_name || 'Kullanıcı'}</div>
+            <div style={{fontSize:10,color:'#334155',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.email || ''}</div>
           </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {/* Dil */}
-          {['TR','EN'].map(l=>(
-            <button key={l} onClick={()=>setLang(l)}
-              style={{background:lang===l?'rgba(26,106,255,0.15)':'transparent',border:`1px solid ${lang===l?'rgba(26,106,255,0.4)':'#0f1923'}`,borderRadius:6,padding:'3px 7px',color:lang===l?'#60a5fa':'#334155',fontSize:9,fontWeight:700,cursor:'pointer'}}>
-              {l}
-            </button>
-          ))}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#020509',borderRadius:8,padding:'8px 10px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:PLANS[profile?.plan||'free'].color,boxShadow:`0 0 6px ${PLANS[profile?.plan||'free'].color}`}}/>
+            <span style={{fontSize:10,fontWeight:700,color:PLANS[profile?.plan||'free'].color,letterSpacing:1}}>{(profile?.plan||'free').toUpperCase()}</span>
+          </div>
+          {quota&&quota.plan==='free'&&(
+            <span style={{fontSize:10,color:'#475569'}}>{quota.used}/{quota.limit} analiz</span>
+          )}
+          {quota?.plan==='free'&&(
+            <button onClick={()=>setShowPlans(true)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:10,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif",fontWeight:600}}>Yükselt</button>
+          )}
         </div>
+        {quota?.plan==='free'&&(
+          <div style={{marginTop:8,height:3,background:'#0f1923',borderRadius:2}}>
+            <div style={{height:'100%',width:`${(quota.used/quota.limit)*100}%`,background:'linear-gradient(90deg,#1d4ed8,#3b82f6)',borderRadius:2,transition:'width 0.3s'}}/>
+          </div>
+        )}
       </div>
 
-      {/* KOTA BAR */}
-      {quota && (
-        <div style={{padding:'8px 14px',background:'rgba(26,106,255,0.04)',borderBottom:'1px solid #0a0f1a',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div style={{width:6,height:6,borderRadius:'50%',background:planInfo.color}}/>
-            <span style={{fontSize:10,color:planInfo.color,fontWeight:700,letterSpacing:1}}>{(profile?.plan||'free').toUpperCase()}</span>
-            <span style={{fontSize:10,color:'#334155'}}>
-              {quota.plan==='free' ? `${quota.used}/${quota.limit} analiz` : 'Sınırsız'}
-            </span>
+      {/* Coin Arama */}
+      <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:600,marginBottom:10}}>VARLIKLAR</div>
+      <div style={{position:'relative',marginBottom:12}}>
+        <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#334155',fontSize:12}}>⌕</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Coin ara..."
+          style={{width:'100%',background:'#020509',border:'1px solid #0f1923',borderRadius:8,padding:'9px 10px 9px 28px',color:'#e2e8f0',fontSize:12,outline:'none',fontFamily:"'Space Grotesk',sans-serif"}}/>
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:5,maxHeight:340,overflowY:'auto'}}>
+        {filtered.map(c=>(
+          <button key={c} className="coin-btn" onClick={()=>{setCoin(c);setSearch('');}}
+            style={{background:coin===c?'rgba(59,130,246,0.15)':'transparent',border:`1px solid ${coin===c?'rgba(59,130,246,0.4)':'#0f1923'}`,borderRadius:7,padding:'5px 10px',color:coin===c?'#60a5fa':'#475569',fontSize:11,fontWeight:coin===c?700:400,cursor:'pointer',fontFamily:"'JetBrains Mono',monospace"}}>
+            {c}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const CenterPanel = () => (
+    <div style={{padding:'24px 24px',background:'#020509'}}>
+      {/* Analiz Başlık */}
+      <div style={{background:'#08111e',border:'1px solid #0f1923',borderRadius:16,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
+        <div>
+          <div style={{fontSize:28,fontWeight:700,letterSpacing:-0.5,fontFamily:"'JetBrains Mono',monospace",color:'#f1f5f9'}}>
+            {coin}<span style={{fontSize:14,color:'#334155',fontWeight:400,marginLeft:6}}>/USDT</span>
           </div>
-          {quota.plan==='free'&&(
-            <button onClick={()=>{ handleLogout(); setAuthMode('plans'); }}
-              style={{background:'rgba(26,106,255,0.15)',border:'1px solid rgba(26,106,255,0.3)',borderRadius:6,padding:'3px 10px',color:'#60a5fa',fontSize:9,fontWeight:700,cursor:'pointer'}}>
-              ⚡ UPGRADE
-            </button>
+          <div style={{fontSize:10,color:'#3b82f6',letterSpacing:3,marginTop:4,fontWeight:600}}>CHARTOS APEX 4.0 — HAZIR</div>
+        </div>
+        <button className="btn-primary" onClick={()=>handleAnalyze(coin)} disabled={loading}
+          style={{background:loading?'#0f1f3d':'linear-gradient(135deg,#1d4ed8,#6d28d9)',border:'none',borderRadius:12,padding:'13px 24px',color:'#fff',fontSize:13,fontWeight:700,cursor:loading?'wait':'pointer',fontFamily:"'Space Grotesk',sans-serif",whiteSpace:'nowrap',minWidth:140}}>
+          {loading
+            ? <span style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:12,height:12,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',display:'inline-block',animation:'spin 0.7s linear infinite'}}/> Analiz...</span>
+            : '⚡ Analiz Et'
+          }
+        </button>
+      </div>
+
+      {/* Hata */}
+      {error&&!loading&&(
+        <div style={{background:'rgba(239,68,68,0.06)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:12,padding:'14px 18px',marginBottom:16}}>
+          <div style={{fontSize:12,color:'#f87171'}}>{error}</div>
+          {(error.includes('limit')||error.includes('doldu'))&&(
+            <button onClick={()=>setShowPlans(true)} style={{marginTop:10,background:'#1d4ed8',border:'none',borderRadius:8,padding:'8px 16px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>→ Pro'ya Geç</button>
           )}
         </div>
       )}
 
-      <div style={{padding:'16px 14px',paddingBottom:80}}>
-
-        {/* SEÇİLİ COİN */}
-        <div style={{background:'linear-gradient(135deg,rgba(26,106,255,0.08),rgba(124,58,237,0.08))',border:'1px solid rgba(99,102,241,0.2)',borderRadius:16,padding:'14px 18px',marginBottom:14,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <div>
-            <div style={{fontSize:22,fontWeight:900,letterSpacing:1}}>{coin}<span style={{fontSize:12,color:'#334155',marginLeft:4}}>/USDT</span></div>
-            <div style={{fontSize:10,color:'#334155',letterSpacing:1,marginTop:2}}>CHARTOS APEX 4.0 HAZIR</div>
-          </div>
-          <button onClick={()=>handleAnalyze(coin)} disabled={loading}
-            style={{background:loading?'rgba(26,106,255,0.3)':'linear-gradient(135deg,#1a6aff,#7c3aed)',border:'none',borderRadius:12,padding:'12px 20px',color:'#fff',fontSize:13,fontWeight:800,cursor:loading?'wait':'pointer',minWidth:110,transition:'all .2s'}}>
-            {loading ? <span style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:12,height:12,border:'2px solid #fff',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/>{t.searching}</span> : `⚡ ${t.analyze}`}
-          </button>
-        </div>
-
-        {/* SEARCH */}
-        <div style={{position:'relative',marginBottom:14}}>
-          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'#334155',fontSize:14}}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Coin ara... BTC, ETH, SOL"
-            style={{width:'100%',background:'#080c14',border:'1px solid #0f1923',borderRadius:12,padding:'11px 14px 11px 36px',color:'#f1f5f9',fontSize:13,outline:'none'}}/>
-        </div>
-
-        {/* COİN LİSTESİ */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
-          {filtered.slice(0,50).map(c=>(
-            <button key={c} onClick={()=>{setCoin(c);setSearch('');}}
-              style={{background:coin===c?'rgba(26,106,255,0.2)':'rgba(255,255,255,0.02)',border:`1px solid ${coin===c?'rgba(26,106,255,0.5)':'#0f1923'}`,borderRadius:8,padding:'6px 11px',color:coin===c?'#60a5fa':'#475569',fontSize:11,fontWeight:coin===c?800:400,cursor:'pointer',transition:'all .15s'}}>
-              {c}
+      {/* Analiz Sonucu */}
+      {result&&!loading&&(
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:600}}>ANALİZ SONUCU</div>
+            <button onClick={()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
+              style={{background:copied?'rgba(16,185,129,0.1)':'rgba(255,255,255,0.03)',border:`1px solid ${copied?'rgba(16,185,129,0.3)':'#0f1923'}`,borderRadius:7,padding:'5px 12px',color:copied?'#34d399':'#475569',fontSize:11,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>
+              {copied?'✓ Kopyalandı':'Kopyala'}
             </button>
-          ))}
-        </div>
-
-        {/* HATA */}
-        {error&&!loading&&(
-          <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.25)',borderRadius:12,padding:'14px 16px',marginBottom:14,animation:'fadeIn .3s ease'}}>
-            <div style={{fontSize:12,color:'#f87171',lineHeight:1.6}}>{error}</div>
-            {error.includes('limit')||error.includes('doldu') ? (
-              <button onClick={()=>{ handleLogout(); setAuthMode('plans'); }}
-                style={{marginTop:10,background:'linear-gradient(135deg,#1a6aff,#7c3aed)',border:'none',borderRadius:8,padding:'9px 16px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                ⚡ Pro'ya Geç → Sınırsız Analiz
-              </button>
-            ) : null}
           </div>
-        )}
-
-        {/* ANALİZ SONUCU */}
-        {result&&!loading&&(
-          <div style={{animation:'fadeIn .3s ease'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-              <div style={{fontSize:11,color:'#334155',letterSpacing:1}}>CHARTOS ANALİZ</div>
-              <button onClick={()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
-                style={{background:copied?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.03)',border:`1px solid ${copied?'rgba(16,185,129,0.3)':'#0f1923'}`,borderRadius:8,padding:'5px 12px',color:copied?'#34d399':'#475569',fontSize:11,cursor:'pointer'}}>
-                {copied?'✓ Kopyalandı':'📋 Kopyala'}
-              </button>
-            </div>
-            {sections.map((sec,si)=>{
-              if(sec.type==='header') return (
-                <div key={si} style={{background:'linear-gradient(135deg,rgba(124,58,237,0.12),rgba(26,106,255,0.12))',border:'1px solid rgba(124,58,237,0.3)',borderRadius:14,padding:'14px 18px',marginBottom:12,textAlign:'center',boxShadow:'0 0 25px rgba(124,58,237,0.1)'}}>
-                  <div style={{fontSize:12,fontWeight:900,color:'#fff',letterSpacing:2}}>🔱 {sec.text}</div>
+          {sections.map((sec,si)=>{
+            if(sec.type==='header') return (
+              <div key={si} style={{background:'linear-gradient(135deg,rgba(109,40,217,0.1),rgba(29,78,216,0.1))',border:'1px solid rgba(99,102,241,0.2)',borderRadius:12,padding:'14px 18px',marginBottom:12,textAlign:'center'}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#818cf8',letterSpacing:2}}>🔱 {sec.text}</div>
+              </div>
+            );
+            if(sec.type==='text') return <div key={si} style={{fontSize:11,color:'#334155',padding:'2px 0',lineHeight:1.5}}>{sec.text}</div>;
+            const m = sectionMeta(sec.title);
+            const isRisk = sec.title?.match(/Risk/i);
+            return (
+              <div key={si} className="section-card" style={{background:m.bg,border:`1px solid ${m.border}`,borderRadius:12,marginBottom:10,overflow:'hidden'}}>
+                <div style={{padding:'10px 16px',borderBottom:`1px solid ${m.border}`,display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:12,color:m.color,fontFamily:"'JetBrains Mono',monospace"}}>{m.icon}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:m.color,letterSpacing:1.5,textTransform:'uppercase'}}>{sec.title?.replace(/[🔱📊⚡🎯🎭🔮📍⚠️◆◎⬡◈◐◉△○]/g,'').trim()}</span>
                 </div>
-              );
-              if(sec.type==='text') return (
-                <div key={si} style={{fontSize:11,color:'#334155',padding:'2px 0',lineHeight:1.5}}>{sec.text}</div>
-              );
-              const m = sectionMeta(sec.title);
-              const isRisk = sec.title?.match(/Risk/i);
-              return (
-                <div key={si} style={{background:m.bg,border:`1px solid ${m.border}`,borderRadius:14,marginBottom:10,overflow:'hidden',animation:'fadeIn .3s ease'}}>
-                  <div style={{padding:'10px 16px',borderBottom:`1px solid ${m.border}`,display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:13}}>{m.icon}</span>
-                    <div style={{width:3,height:12,borderRadius:2,background:m.color,boxShadow:`0 0 6px ${m.color}`}}/>
-                    <span style={{fontSize:10,fontWeight:800,color:m.color,letterSpacing:1.5,textTransform:'uppercase'}}>{sec.title?.replace(/[🔱📊⚡🎯🎭🔮📍⚠️]/g,'').trim()}</span>
-                  </div>
-                  <div style={{padding:'4px 0'}}>
-                    {sec.items?.map((item,ii)=>{
-                      if(item.type==='kv'){const kv=kvColor(item.key);return(
-                        <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 16px',borderBottom:'1px solid rgba(255,255,255,0.02)',gap:10,background:kv.bg}}>
-                          <span style={{fontSize:10,color:'#475569',fontWeight:600,letterSpacing:0.5,flexShrink:0,minWidth:100}}>{item.key}</span>
-                          <span style={{fontSize:12,fontWeight:800,color:kv.c,textAlign:'right',lineHeight:1.4,textShadow:`0 0 8px ${kv.c}40`}}>{item.value}</span>
-                        </div>
-                      );}
-                      if(item.type==='bullet') return(
-                        <div key={ii} style={{display:'flex',gap:8,padding:'6px 16px',alignItems:'flex-start'}}>
-                          <span style={{color:m.color,fontSize:9,marginTop:4,flexShrink:0}}>▸</span>
-                          <span style={{fontSize:11,color:'#64748b',lineHeight:1.6}}>{item.text}</span>
-                        </div>
-                      );
-                      if(item.type==='text') return(
-                        <div key={ii} style={{padding:'6px 16px',fontSize:11,color:isRisk?'#fca5a5':'#64748b',lineHeight:1.7}}>
-                          {isRisk&&<span style={{marginRight:4}}>⚠️</span>}{item.text}
-                        </div>
-                      );
-                      return null;
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* SON ANALİZLER */}
-        {!result&&!loading&&recent.length>0&&(
-          <div style={{marginTop:8}}>
-            <div style={{fontSize:10,color:'#334155',letterSpacing:1.5,marginBottom:10}}>SON ANALİZLER</div>
-            {recent.map((r,i)=>(
-              <div key={i} onClick={()=>handleAnalyze(r.coin)}
-                style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',background:'#080c14',border:'1px solid #0f1923',borderRadius:10,marginBottom:6,cursor:'pointer'}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <div style={{width:7,height:7,borderRadius:'50%',background:'#1a6aff'}}/>
-                  <span style={{fontSize:13,fontWeight:700}}>{r.coin}</span>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:11,color:'#334155'}}>{r.price}</span>
-                  <span style={{fontSize:10,color:'#1e3a5f'}}>{r.time}</span>
+                <div>
+                  {sec.items?.map((item,ii)=>{
+                    if(item.type==='kv'){const c=kvStyle(item.key);return(
+                      <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 16px',borderBottom:'1px solid rgba(255,255,255,0.02)',gap:12}}>
+                        <span style={{fontSize:11,color:'#475569',fontWeight:500,flexShrink:0,minWidth:120,fontFamily:"'Space Grotesk',sans-serif"}}>{item.key}</span>
+                        <span style={{fontSize:12,fontWeight:700,color:c,textAlign:'right',fontFamily:"'JetBrains Mono',monospace",lineHeight:1.4}}>{item.value}</span>
+                      </div>
+                    );}
+                    if(item.type==='bullet') return(
+                      <div key={ii} style={{display:'flex',gap:8,padding:'7px 16px',alignItems:'flex-start'}}>
+                        <span style={{color:m.color,fontSize:9,marginTop:4,flexShrink:0}}>▸</span>
+                        <span style={{fontSize:11,color:'#64748b',lineHeight:1.6}}>{item.text}</span>
+                      </div>
+                    );
+                    return(
+                      <div key={ii} style={{padding:'6px 16px',fontSize:11,color:isRisk?'#fca5a5':'#64748b',lineHeight:1.7}}>{item.text}</div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* FOOTER */}
-      {!loading&&(
-        <div style={{background:'#040609',borderTop:'1px solid #0f1923',padding:'16px 14px'}}>
-          <div style={{maxWidth:400,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <img src="/logo.webp" style={{width:24,height:24,borderRadius:6,objectFit:'cover'}} alt="DTS"/>
-              <div>
-                <div style={{fontSize:10,fontWeight:800,letterSpacing:1}}>DEEP TRADE SCAN</div>
-                <div style={{fontSize:8,color:'#1e3a5f',letterSpacing:1}}>CHARTOS APEX 4.0</div>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:6}}>
-              <a href="https://t.me/deeptradescan" target="_blank" style={{background:'rgba(41,168,235,0.08)',border:'1px solid rgba(41,168,235,0.15)',borderRadius:8,padding:'5px 10px',color:'#29A8EB',fontSize:10,fontWeight:700}}>✈️ Telegram</a>
-              <button onClick={handleLogout} style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'5px 10px',color:'#f87171',fontSize:10,fontWeight:700,cursor:'pointer'}}>Çıkış</button>
-            </div>
-          </div>
-          <div style={{textAlign:'center',marginTop:10,fontSize:9,color:'#1e3a5f'}}>⚠️ {t.footer}</div>
+            );
+          })}
         </div>
       )}
 
-      {/* DRAWER */}
-      {drawer&&(
-        <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex'}}>
-          <div onClick={()=>setDrawer(false)} style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.85)'}}/>
-          <div style={{position:'relative',width:280,height:'100%',background:'#08111e',borderRight:'1px solid #0f1923',display:'flex',flexDirection:'column',animation:'slide .2s ease',zIndex:1,overflowY:'auto'}}>
-            <div style={{padding:'16px 14px',borderBottom:'1px solid #0f1923',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <img src="/logo.webp" style={{width:30,height:30,borderRadius:9,objectFit:'cover'}} alt="DTS"/>
-                <div>
-                  <div style={{fontSize:11,fontWeight:900,letterSpacing:1}}>DEEP TRADE SCAN</div>
-                  <div style={{fontSize:8,color:'#1e3a5f',letterSpacing:1}}>CHARTOS APEX 4.0</div>
-                </div>
-              </div>
-              <button onClick={()=>setDrawer(false)} style={{background:'none',border:'none',color:'#334155',fontSize:18,cursor:'pointer'}}>✕</button>
-            </div>
+      {!result&&!loading&&(
+        <div style={{textAlign:'center',padding:'60px 0',color:'#1e293b'}}>
+          <div style={{fontSize:40,marginBottom:12,opacity:0.3}}>◈</div>
+          <div style={{fontSize:13,color:'#1e293b'}}>Coin seçin ve analiz başlatın</div>
+        </div>
+      )}
+    </div>
+  );
 
-            {/* Kullanıcı bilgisi */}
-            <div style={{padding:'14px',borderBottom:'1px solid #0f1923'}}>
-              <div style={{background:planInfo.bg,border:`1px solid ${planInfo.border}`,borderRadius:12,padding:'12px 14px'}}>
-                <div style={{fontSize:10,color:planInfo.color,fontWeight:800,letterSpacing:1,marginBottom:4}}>{(profile?.plan||'free').toUpperCase()} PLAN</div>
-                <div style={{fontSize:11,color:'#94a3b8',marginBottom:8}}>{profile?.email || session?.user?.email || 'Kullanıcı'}</div>
-                {quota && quota.plan==='free' && (
-                  <div style={{fontSize:10,color:'#475569'}}>
-                    Günlük: {quota.used}/{quota.limit} analiz kullanıldı
-                    <div style={{marginTop:6,height:4,background:'#0a1220',borderRadius:2,overflow:'hidden'}}>
-                      <div style={{height:'100%',width:`${(quota.used/quota.limit)*100}%`,background:'linear-gradient(90deg,#1a6aff,#7c3aed)',borderRadius:2,transition:'width .3s'}}/>
+  const RightPanel = () => (
+    <div style={{padding:'20px 16px',background:'#04080f'}}>
+      <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:600,marginBottom:16}}>SON ANALİZLER</div>
+      {recent.length>0 ? recent.map((r,i)=>(
+        <div key={i} className="recent-row" onClick={()=>handleAnalyze(r.coin)}
+          style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#080f1a',border:'1px solid #0f1923',borderRadius:10,marginBottom:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:'#3b82f6',boxShadow:'0 0 6px #3b82f6'}}/>
+            <span style={{fontSize:12,fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{r.coin}</span>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:11,color:'#64748b',fontFamily:"'JetBrains Mono',monospace"}}>{r.price}</div>
+            <div style={{fontSize:9,color:'#1e293b',marginTop:1}}>{r.time}</div>
+          </div>
+        </div>
+      )) : (
+        <div style={{fontSize:11,color:'#1e293b',textAlign:'center',padding:'30px 0'}}>Henüz analiz yapılmadı</div>
+      )}
+
+      <div style={{marginTop:24,borderTop:'1px solid #0f1923',paddingTop:20}}>
+        <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:600,marginBottom:12}}>HIZLI ERİŞİM</div>
+        <a href="https://t.me/deeptradescan" target="_blank" style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',background:'rgba(41,168,235,0.06)',border:'1px solid rgba(41,168,235,0.15)',borderRadius:10,color:'#29A8EB',fontSize:12,fontWeight:600,marginBottom:8,textDecoration:'none'}}>
+          ✈️ Telegram Kanalı
+        </a>
+        <button onClick={()=>setShowPlans(true)} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'11px 14px',background:'rgba(59,130,246,0.06)',border:'1px solid rgba(59,130,246,0.15)',borderRadius:10,color:'#60a5fa',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif",marginBottom:8}}>
+          ⚡ Planlar & Fiyatlar
+        </button>
+        <button onClick={handleLogout} style={{width:'100%',padding:'10px',background:'transparent',border:'1px solid #0f1923',borderRadius:10,color:'#475569',fontSize:12,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>
+          Çıkış Yap
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <style>{CSS}</style>
+
+      {showPlans && (
+        <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(2,5,9,0.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:24,overflow:'auto'}} className="auth-card">
+          <div style={{width:'100%',maxWidth:860}}>
+            <div style={{textAlign:'center',marginBottom:32}}>
+              <div style={{fontSize:13,color:'#3b82f6',letterSpacing:4,fontWeight:600,marginBottom:8}}>MEMBERSHIP</div>
+              <div style={{fontSize:28,fontWeight:700}}>Planınızı Seçin</div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:16,marginBottom:24}}>
+              {Object.entries(PLANS).map(([key,plan])=>(
+                <div key={key} style={{background:'#080f1a',border:`1px solid ${key==='pro'?plan.color+'50':'#0f1923'}`,borderRadius:16,padding:24,boxShadow:key==='pro'?`0 0 30px ${plan.glow}`:'none'}}>
+                  <div style={{fontSize:10,color:plan.color,letterSpacing:3,fontWeight:700,marginBottom:6}}>{plan.name}</div>
+                  <div style={{fontSize:24,fontWeight:700,marginBottom:16,fontFamily:"'JetBrains Mono',monospace"}}>{plan.price}</div>
+                  {plan.features.map((f,i)=>(
+                    <div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+                      <span style={{color:plan.color,fontSize:10,marginTop:2,flexShrink:0}}>✓</span>
+                      <span style={{fontSize:11,color:'#64748b'}}>{f}</span>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Coin listesi drawer'da */}
-            <div style={{padding:'12px 14px',flex:1}}>
-              <div style={{fontSize:10,color:'#334155',letterSpacing:1.5,marginBottom:10}}>TÜM COİNLER</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                {COINS.map(c=>(
-                  <button key={c} onClick={()=>{setCoin(c);setDrawer(false);}}
-                    style={{background:coin===c?'rgba(26,106,255,0.2)':'rgba(255,255,255,0.02)',border:`1px solid ${coin===c?'rgba(26,106,255,0.4)':'#0f1923'}`,borderRadius:7,padding:'5px 9px',color:coin===c?'#60a5fa':'#475569',fontSize:10,fontWeight:coin===c?700:400,cursor:'pointer'}}>
-                    {c}
+                  ))}
+                  <button onClick={key==='free'?()=>setShowPlans(false):()=>alert('İletişim: @deeptradescan')}
+                    style={{width:'100%',marginTop:16,background:key==='free'?'#0f1923':`linear-gradient(135deg,${plan.color},${plan.color}cc)`,border:'none',borderRadius:9,padding:'11px',color:key==='free'?'#475569':'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>
+                    {key==='free'?'Ücretsiz Devam Et':`${plan.name} Seç →`}
                   </button>
-                ))}
+                </div>
+              ))}
+            </div>
+            <div style={{textAlign:'center'}}>
+              <button onClick={()=>setShowPlans(false)} style={{background:'none',border:'none',color:'#475569',fontSize:13,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>✕ Kapat</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP LAYOUT */}
+      <div className="app-layout">
+        {/* TOP BAR */}
+        <div className="top-bar" style={{background:'#04080f',borderBottom:'1px solid #0f1923',padding:'0 20px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button className="mobile-only" onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:'none',border:'none',cursor:'pointer',padding:4,color:'#475569'}}>
+              ☰
+            </button>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <div style={{width:32,height:32,borderRadius:9,background:'linear-gradient(135deg,#0f1f3d,#1a3a6a)',border:'1px solid rgba(59,130,246,0.25)',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <img src="/logo.webp" style={{width:28,height:28,objectFit:'cover',borderRadius:7}} alt="DTS" onError={e=>{e.target.style.display='none';}}/>
+              </div>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,letterSpacing:1}}>DEEP TRADE SCAN</div>
+                <div style={{fontSize:8,color:'#3b82f6',letterSpacing:3,fontWeight:600}}>CHARTOS APEX 4.0</div>
               </div>
             </div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            {['TR','EN'].map(l=>(
+              <button key={l} onClick={()=>setLang(l)} style={{background:lang===l?'rgba(59,130,246,0.1)':'transparent',border:`1px solid ${lang===l?'rgba(59,130,246,0.3)':'#0f1923'}`,borderRadius:6,padding:'4px 9px',color:lang===l?'#60a5fa':'#475569',fontSize:10,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif"}}>
+                {l}
+              </button>
+            ))}
+            {quota&&(
+              <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#080f1a',border:'1px solid #0f1923',borderRadius:8}}>
+                <div style={{width:5,height:5,borderRadius:'50%',background:PLANS[profile?.plan||'free'].color,animation:'pulse 2s infinite'}}/>
+                <span style={{fontSize:10,color:PLANS[profile?.plan||'free'].color,fontWeight:700,letterSpacing:1}}>{(profile?.plan||'free').toUpperCase()}</span>
+                {quota.plan==='free'&&<span style={{fontSize:10,color:'#334155'}}>{quota.used}/{quota.limit}</span>}
+              </div>
+            )}
+          </div>
+        </div>
 
-            {/* Plans */}
-            <div style={{padding:'12px 14px',borderTop:'1px solid #0f1923'}}>
-              <button onClick={()=>{setDrawer(false);handleLogout();setAuthMode('plans');}}
-                style={{width:'100%',background:'linear-gradient(135deg,rgba(26,106,255,0.15),rgba(124,58,237,0.15))',border:'1px solid rgba(99,102,241,0.3)',borderRadius:10,padding:'11px',color:'#818cf8',fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:8}}>
-                ⚡ Planları Görüntüle
-              </button>
-              <button onClick={()=>{setDrawer(false);handleLogout();}}
-                style={{width:'100%',background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:10,padding:'10px',color:'#f87171',fontSize:12,cursor:'pointer'}}>
-                Çıkış Yap
-              </button>
+        {/* LEFT */}
+        <div className="left-panel desktop-only"><LeftPanel/></div>
+        {/* CENTER */}
+        <div className="center-panel"><CenterPanel/></div>
+        {/* RIGHT */}
+        <div className="right-panel desktop-only"><RightPanel/></div>
+      </div>
+
+      {/* MOBİL DRAWER */}
+      {sidebarOpen&&(
+        <div style={{position:'fixed',inset:0,zIndex:9998,display:'flex'}} className="mobile-only">
+          <div onClick={()=>setSidebarOpen(false)} style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.8)'}}/>
+          <div style={{position:'relative',width:280,height:'100%',background:'#04080f',borderRight:'1px solid #0f1923',overflowY:'auto',zIndex:1,animation:'fadeIn 0.2s ease'}}>
+            <div style={{padding:'14px',borderBottom:'1px solid #0f1923',display:'flex',justifyContent:'flex-end'}}>
+              <button onClick={()=>setSidebarOpen(false)} style={{background:'none',border:'none',color:'#475569',fontSize:18,cursor:'pointer'}}>✕</button>
+            </div>
+            <LeftPanel/>
+            <div style={{padding:'16px'}}>
+              <RightPanel/>
             </div>
           </div>
         </div>
