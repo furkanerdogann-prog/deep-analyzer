@@ -517,20 +517,165 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* FEATURES */}
-      <section id="features" style={{padding:'100px 5%',background:'#030711'}}>
-        <div style={{maxWidth:1100,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:64}}>
-            <div style={{fontSize:11,color:'#a855f7',letterSpacing:4,fontWeight:700,marginBottom:12}}>{L.featTitle}</div>
-            <h2 style={{fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-1px'}}>CHARTOS APEX 4.0</h2>
-            <p style={{fontSize:15,color:'#475569',marginTop:12,maxWidth:500,margin:'12px auto 0'}}>2026 Market Maker algoritması ile 10 katmanlı ultra analiz motoru</p>
+      {/* FEATURES — elit kurumsal teknoloji showcase */}
+      <section id="features" style={{padding:'120px 5%',background:'#020509',position:'relative',overflow:'hidden'}}>
+        {/* Arka plan efektleri */}
+        <div style={{position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(168,85,247,0.4),transparent)'}}/>
+        <div style={{position:'absolute',top:'30%',left:'-5%',width:500,height:500,background:'radial-gradient(ellipse,rgba(168,85,247,0.04),transparent 70%)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',bottom:'20%',right:'-5%',width:400,height:400,background:'radial-gradient(ellipse,rgba(59,130,246,0.05),transparent 70%)',pointerEvents:'none'}}/>
+
+        <div style={{maxWidth:1200,margin:'0 auto'}}>
+          {/* Başlık */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto',alignItems:'flex-end',marginBottom:70,gap:24}}>
+            <div>
+              <div style={{fontSize:10,color:'#a855f7',letterSpacing:5,fontWeight:700,marginBottom:14}}>{L.featTitle}</div>
+              <h2 style={{fontSize:'clamp(32px,5vw,56px)',fontWeight:800,letterSpacing:'-2px',lineHeight:1,marginBottom:16}}>
+                CHARTOS <span style={{background:'linear-gradient(135deg,#a855f7,#6d28d9)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>APEX</span> 4.0
+              </h2>
+              <p style={{fontSize:15,color:'#475569',maxWidth:520,lineHeight:1.7}}>
+                2026 yılının en gelişmiş Market Maker algoritması. Kurumsal oyuncuların her hamlesini 10 katmanlı analiz motoru ile saniyeler içinde tespit eder.
+              </p>
+            </div>
+            <div style={{background:'#080f1a',border:'1px solid rgba(168,85,247,0.2)',borderRadius:14,padding:'16px 24px',textAlign:'center',flexShrink:0}}>
+              <div style={{fontSize:32,fontWeight:800,color:'#a855f7',fontFamily:"'JetBrains Mono',monospace",lineHeight:1}}>10</div>
+              <div style={{fontSize:9,color:'#475569',letterSpacing:2,marginTop:4}}>ANALİZ KATMANI</div>
+            </div>
           </div>
-          <div className="feat-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16}}>
-            {L.feats.map((f,i)=>(
-              <div key={i} className="feat-card">
-                <div style={{fontSize:24,marginBottom:16,color:'#3b82f6',fontFamily:"'JetBrains Mono',monospace"}}>{f.icon}</div>
-                <div style={{fontSize:15,fontWeight:700,color:'#f1f5f9',marginBottom:8}}>{f.t}</div>
-                <div style={{fontSize:13,color:'#475569',lineHeight:1.7}}>{f.d}</div>
+
+          {/* Büyük featured kart — Market Maker */}
+          <div style={{background:'#08111e',border:'1px solid rgba(168,85,247,0.15)',borderRadius:24,padding:40,marginBottom:16,position:'relative',overflow:'hidden',display:'grid',gridTemplateColumns:'1fr 1fr',gap:48,alignItems:'center'}}>
+            <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(90deg,transparent,#a855f7,#6d28d9,transparent)'}}/>
+            <div style={{position:'absolute',top:-60,right:-60,width:200,height:200,background:'radial-gradient(ellipse,rgba(168,85,247,0.08),transparent 70%)',pointerEvents:'none'}}/>
+
+            <div>
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(168,85,247,0.1)',border:'1px solid rgba(168,85,247,0.25)',borderRadius:8,padding:'5px 14px',marginBottom:20}}>
+                <div style={{width:6,height:6,borderRadius:'50%',background:'#a855f7',boxShadow:'0 0 8px #a855f7'}}/>
+                <span style={{fontSize:9,color:'#a855f7',fontWeight:700,letterSpacing:2}}>CORE ENGINE</span>
+              </div>
+              <h3 style={{fontSize:'clamp(22px,3vw,32px)',fontWeight:800,letterSpacing:'-0.5px',marginBottom:16,lineHeight:1.2}}>Market Maker<br/>Algoritması</h3>
+              <p style={{fontSize:14,color:'#64748b',lineHeight:1.8,marginBottom:24}}>Phase A-B-C-D döngüsünü takip eden kurumsal manipülasyon tespit motoru. Weak hand liquidation, stop hunt ve accumulation/distribution fazlarını gerçek zamanlı analiz eder.</p>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                {['Phase A–D Motor','Stop Hunt Tespiti','Weak Hand Liquidation','Accumulation/Distribution'].map((t,i)=>(
+                  <div key={i} style={{background:'rgba(168,85,247,0.08)',border:'1px solid rgba(168,85,247,0.15)',borderRadius:6,padding:'5px 12px',fontSize:11,color:'#c084fc',fontWeight:600}}>{t}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* Phase diagram */}
+            <div>
+              <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:700,marginBottom:16}}>MM PHASE DÖNGÜSÜ</div>
+              <div style={{display:'flex',gap:3,marginBottom:20,alignItems:'stretch'}}>
+                {[
+                  {p:'A',l:'ACCUMULATION',c:'#3b82f6',h:60,d:'Kurumsal alım'},
+                  {p:'B',l:'MANIPULATION',c:'#f59e0b',h:80,d:'Stop hunt'},
+                  {p:'C',l:'DISTRIBUTION',c:'#a855f7',h:50,d:'Fiyat baskısı'},
+                  {p:'D',l:'MARKUP',c:'#10b981',h:100,d:'Fiyat yükselişi'},
+                ].map((ph,i)=>(
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                    <div style={{fontSize:8,color:'#334155',letterSpacing:1,textAlign:'center',height:28,display:'flex',alignItems:'flex-end'}}>{ph.d}</div>
+                    <div style={{width:'100%',height:ph.h,background:`linear-gradient(180deg,${ph.c}40,${ph.c}15)`,border:`1px solid ${ph.c}40`,borderRadius:'6px 6px 0 0',display:'flex',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
+                      <div style={{position:'absolute',bottom:0,left:0,right:0,height:'40%',background:`linear-gradient(0deg,${ph.c}30,transparent)`}}/>
+                      <span style={{fontSize:16,fontWeight:800,color:ph.c,fontFamily:"'JetBrains Mono',monospace",zIndex:1}}>{ph.p}</span>
+                    </div>
+                    <div style={{fontSize:7,color:ph.c,letterSpacing:0.5,fontWeight:700,textAlign:'center'}}>{ph.l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:'#04080f',borderRadius:10,padding:'12px 16px'}}>
+                <div style={{fontSize:10,color:'#334155',marginBottom:8,letterSpacing:1}}>MEVCUT DURUM</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div style={{fontSize:13,color:'#f59e0b',fontWeight:700}}>Phase B — Manipulation</div>
+                  <div style={{fontSize:11,color:'#10b981',fontWeight:600}}>Next: Phase C →</div>
+                </div>
+                <div style={{marginTop:8,height:3,background:'#0f1923',borderRadius:2}}>
+                  <div style={{width:'60%',height:'100%',background:'linear-gradient(90deg,#3b82f6,#f59e0b)',borderRadius:2}}/>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 orta kart */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:16}}>
+            {[
+              {
+                badge:'ICT METHODOLOGY',badgeColor:'#06b6d4',
+                title:'ICT + Wyckoff Füzyon',
+                desc:'Silver Bullet, Judas Swing, Turtle Soup Pro ve Wyckoff Spring/Upthrust gerçek zamanlı. OTE bölgesi ve Breaker Block otomatik tespit.',
+                metrics:[{l:'Silver Bullet',v:'07:00–08:00'},{ l:'Judas Swing',v:'%87 doğruluk'},{l:'Spring/Upthrust',v:'4H+'}],
+                color:'#06b6d4',
+              },
+              {
+                badge:'ON-CHAIN DATA',badgeColor:'#10b981',
+                title:'On-Chain Entegrasyon',
+                desc:'SOPR, MVRV-Z, Puell Multiple, exchange inflow/outflow ve whale wallet hareketleri gerçek zamanlı veri akışı.',
+                metrics:[{l:'MVRV-Z',v:'2.34 (Nötr)'},{l:'Exchange Flow',v:'-$2.1B'},{l:'Whale Txn',v:'$500M+'}],
+                color:'#10b981',
+              },
+              {
+                badge:'QUANTITATIVE',badgeColor:'#f59e0b',
+                title:'Quantitative Edge',
+                desc:'Backtested winrate, expectancy, Sharpe ratio ve max drawdown hesaplama. Kanıtlanmış istatistiksel üstünlük.',
+                metrics:[{l:'Win Rate',v:'%87.4'},{l:'Sharpe Ratio',v:'2.84'},{l:'Max DD',v:'%12.3'}],
+                color:'#f59e0b',
+              },
+            ].map((card,i)=>(
+              <div key={i} style={{background:'#08111e',border:`1px solid ${card.color}18`,borderRadius:18,padding:24,position:'relative',overflow:'hidden',transition:'all 0.3s'}}>
+                <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${card.color},transparent)`}}/>
+                <div style={{display:'inline-flex',alignItems:'center',gap:6,background:`${card.color}10`,border:`1px solid ${card.color}25`,borderRadius:6,padding:'4px 10px',marginBottom:16}}>
+                  <span style={{fontSize:8,color:card.color,fontWeight:700,letterSpacing:1.5}}>{card.badge}</span>
+                </div>
+                <div style={{fontSize:16,fontWeight:700,color:'#f1f5f9',marginBottom:10,letterSpacing:'-0.3px'}}>{card.title}</div>
+                <div style={{fontSize:12,color:'#475569',lineHeight:1.7,marginBottom:18}}>{card.desc}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {card.metrics.map((m,j)=>(
+                    <div key={j} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:'#04080f',borderRadius:7}}>
+                      <span style={{fontSize:10,color:'#475569'}}>{m.l}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:card.color,fontFamily:"'JetBrains Mono',monospace"}}>{m.v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Alt 2 kart */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            {[
+              {
+                badge:'TELEGRAM AUTOMATION',badgeColor:'#3b82f6',
+                title:'Otomatik Sinyal Dağıtımı',
+                desc:'Her analiz tamamlandığında kurumsal format ile Telegram kanalına iletilir. Giriş, stop, 3 hedef ve R:R oranı otomatik hesaplı.',
+                tags:['Anlık Bildirim','Kanal Otomasyonu','Format Şablonu','IFTTT Entegrasyonu'],
+                color:'#3b82f6',
+                stat:{l:'Ortalama İletim',v:'< 2sn'},
+              },
+              {
+                badge:'RISK MANAGEMENT',badgeColor:'#ef4444',
+                title:'Kurumsal Risk Yönetimi',
+                desc:'Position sizing, max kaldıraç hesaplama, Kelly Criterion ve correlated risk analizi. Portföyünüzü kurumsal standartlarda koruyun.',
+                tags:['Kelly Criterion','Correlated Risk','Max Drawdown','Position Sizing'],
+                color:'#ef4444',
+                stat:{l:'Risk/Reward Minimum',v:'1:2.5'},
+              },
+            ].map((card,i)=>(
+              <div key={i} style={{background:'#08111e',border:`1px solid ${card.color}18`,borderRadius:18,padding:28,position:'relative',overflow:'hidden',display:'flex',gap:24,alignItems:'flex-start'}}>
+                <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${card.color},transparent)`}}/>
+                <div style={{flex:1}}>
+                  <div style={{display:'inline-flex',alignItems:'center',gap:6,background:`${card.color}10`,border:`1px solid ${card.color}25`,borderRadius:6,padding:'4px 10px',marginBottom:16}}>
+                    <span style={{fontSize:8,color:card.color,fontWeight:700,letterSpacing:1.5}}>{card.badge}</span>
+                  </div>
+                  <div style={{fontSize:18,fontWeight:700,color:'#f1f5f9',marginBottom:10,letterSpacing:'-0.3px'}}>{card.title}</div>
+                  <div style={{fontSize:13,color:'#475569',lineHeight:1.7,marginBottom:18}}>{card.desc}</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {card.tags.map((t,j)=>(
+                      <div key={j} style={{background:`${card.color}08`,border:`1px solid ${card.color}20`,borderRadius:6,padding:'4px 10px',fontSize:11,color:card.color,fontWeight:600}}>{t}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{background:'#04080f',border:`1px solid ${card.color}20`,borderRadius:12,padding:'16px 20px',textAlign:'center',flexShrink:0,minWidth:110}}>
+                  <div style={{fontSize:11,color:'#334155',letterSpacing:1,marginBottom:8}}>{card.stat.l}</div>
+                  <div style={{fontSize:18,fontWeight:800,color:card.color,fontFamily:"'JetBrains Mono',monospace"}}>{card.stat.v}</div>
+                </div>
               </div>
             ))}
           </div>
