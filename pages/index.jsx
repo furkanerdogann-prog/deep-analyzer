@@ -1,259 +1,395 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
-const T = {
-  TR:{ flag:'🇹🇷', color:'#ef4444', hero1:'YAPAY ZEKA', hero2:'KRİPTO ANALİZİ', sub:'CHARTOS Engine ile 200+ coin için Smart Money Concepts, Wyckoff ve ICT metodolojilerini kullanan kurumsal düzeyde yapay zeka analizi.', cta:'Ücretsiz Analiz Yap', tg:'Telegram Kanalı', f1:'Özellikler', f2:'Nasıl Çalışır', f3:'Fiyatlar', statA:'ANALİZ', statB:'COİN', statC:'KULLANICI', statD:'KATMAN', step1:'Coin Seç', step1d:'200+ coin arasından seçin.', step2:'AI Analiz Et', step2d:'7 katmanlı engine saniyeler içinde tamamlar.', step3:'Sinyal Al', step3d:"Giriş, stop ve hedefler Telegram'a gönderilir.", pTitle:'PLAN SEÇİN', free:'Ücretsiz Başla', pro:'Pro\'ya Geç', elite:'Elite\'ye Geç', perMonth:'/ay', forever:'Sonsuza kadar ücretsiz', ctaTitle:'YAPAY ZEKAYA GEÇ', ctaSub:'200+ coin için CHARTOS analizi.', disc:'Kripto yatırımları risk içerir. Finansal tavsiye değildir.',
-    feats:[['🧠','Smart Money Concepts','Order block, FVG, liquidity sweep otomatik tespit.'],['📊','Wyckoff Metodolojisi','Accumulation/distribution fazları, spring ve upthrust.'],['🎯','ICT Konseptleri','OTE, Breaker Block ve Mitigation Block gerçek zamanlı.'],['🔗','On-Chain Analiz','Whale hareketleri ve exchange flows ile doğrulama.'],['⚡','Manipülasyon Tespiti','Stop hunt ve liquidity grab önceden gösterir.'],['📱','Telegram Sinyalleri','Her analiz otomatik kanala gönderilir.']],
-    plans:[{n:'BAŞLANGIÇ',p:'$0',per:'Sonsuza kadar',f:['Günde 5 analiz','200+ coin','Telegram sinyalleri','TradingView grafik']},{n:'PRO',p:'$29',per:'/ay',f:['Sınırsız analiz','Öncelikli kuyruk','Özel Telegram','Portföy takibi']},{n:'ELİT',p:'$79',per:'/ay',f:["Pro'daki her şey",'1:1 danışmanlık','API erişimi','Strateji raporu']}],
+const PLANS = {
+  TR: [
+    { name:'BAŞLANGIÇ', price:'$0', period:'Sonsuza ücretsiz', color:'#475569', popular:false,
+      features:['Günlük 3 Analiz','CHARTOS APEX 4.0','200+ Coin','Temel Sinyaller','Topluluk Erişimi'] },
+    { name:'PRO', price:'$100', period:'/ay', color:'#3b82f6', popular:true,
+      features:['Sınırsız Analiz','Öncelikli Kuyruk','Özel Telegram Grubu','Portföy Takip Sistemi','7/24 Destek','Haftalık Strateji Raporu','TradingView Entegrasyonu'] },
+    { name:'ELİTE', price:'$500', period:'/ay', color:'#a855f7', popular:false,
+      features:['PRO\'daki Her Şey','1-1 Özel Danışmanlık','Kişisel Portföy Yönetimi','VIP Telegram Kanalı','Aylık Strateji Toplantısı','Dedicated Account Manager','Kurumsal API Erişimi','Öncelikli Telefon Desteği'] },
+  ],
+  EN: [
+    { name:'STARTER', price:'$0', period:'Free forever', color:'#475569', popular:false,
+      features:['3 Daily Analyses','CHARTOS APEX 4.0','200+ Coins','Basic Signals','Community Access'] },
+    { name:'PRO', price:'$100', period:'/mo', color:'#3b82f6', popular:true,
+      features:['Unlimited Analyses','Priority Queue','Private Telegram Group','Portfolio Tracker','24/7 Support','Weekly Strategy Report','TradingView Integration'] },
+    { name:'ELITE', price:'$500', period:'/mo', color:'#a855f7', popular:false,
+      features:['Everything in PRO','1-1 Private Consulting','Personal Portfolio Management','VIP Telegram Channel','Monthly Strategy Meeting','Dedicated Account Manager','Enterprise API Access','Priority Phone Support'] },
+  ],
+};
+
+const COPY = {
+  TR: {
+    nav: ['Özellikler','Nasıl Çalışır','Fiyatlar','Telegram'],
+    cta: 'Ücretsiz Başla',
+    ctaSub: 'Kredi kartı gerekmez',
+    badge: 'CANLI — 7/24 AKTİF',
+    hero1: 'KURUMSAL SEVİYE',
+    hero2: 'KRİPTO ANALİZİ',
+    heroSub: 'Market Maker algoritmalarını, ICT konseptlerini ve Wyckoff metodolojisini birleştiren CHARTOS APEX 4.0 ile 200+ coin için gerçek zamanlı kurumsal analiz.',
+    statLabels: ['Tamamlanan Analiz','Desteklenen Coin','Aktif Kullanıcı','Analiz Katmanı'],
+    stats: ['47.200+','200+','8.400+','10'],
+    trustBadges: ['256-bit SSL','Gerçek Zamanlı Veri','%99.9 Uptime','7/24 Destek'],
+    howTitle: 'NASIL ÇALIŞIR',
+    howSteps: [
+      { n:'01', t:'Coin Seçin', d:'200+ kripto varlık arasından analiz etmek istediğinizi seçin.' },
+      { n:'02', t:'APEX Analiz', d:'10 katmanlı algoritma Market Maker hareketlerini, likidite havuzlarını ve kurumsal footprint\'i saniyeler içinde tespit eder.' },
+      { n:'03', t:'Sinyal Alın', d:'Giriş bölgesi, stop loss ve 3 hedef seviyesi ile R:R hesaplı profesyonel sinyal Telegram kanalına iletilir.' },
+    ],
+    featTitle: 'TEKNOLOJİ',
+    feats: [
+      { icon:'⬡', t:'Market Maker Algoritması', d:'Phase A-B-C-D motoru ile kurumsal manipülasyon tespiti ve weak hand liquidation analizi.' },
+      { icon:'◈', t:'ICT + Wyckoff Füzyon', d:'Silver Bullet, Judas Swing, Turtle Soup Pro ve Wyckoff Spring/Upthrust gerçek zamanlı tespit.' },
+      { icon:'◉', t:'10 Katmanlı Analiz', d:'HTF structure\'dan on-chain veriye, funding rate\'den whale hareketlerine tam spektrum analiz.' },
+      { icon:'◆', t:'Quantitative Edge', d:'Backtested winrate, expectancy, Sharpe ratio ve max drawdown hesaplama ile kanıtlanmış edge.' },
+      { icon:'◎', t:'On-Chain Entegrasyon', d:'SOPR, MVRV-Z, Puell Multiple, exchange flow ve whale wallet tracking gerçek zamanlı.' },
+      { icon:'◐', t:'Telegram Otomasyon', d:'Her analiz otomatik olarak sinyal kanalına iletilir. IFTTT ile tweet akışı aktif.' },
+    ],
+    planTitle: 'FİYATLAR',
+    planSub: 'Kripto piyasalarında kurumsal avantaj edinin',
+    ctaTitle: 'KURUMSAL AVANTAJI YAKALAYIN',
+    ctaDesc: 'Retail yatırımcıların %90\'ı piyasayı kaybeder. CHARTOS APEX 4.0 ile Market Maker\'ların gördüğünü görün.',
+    ctaBtn: 'Ücretsiz Analiz Başlat',
+    footer: 'Bu platform finansal tavsiye vermez. Kripto yatırımları yüksek risk içerir. DYOR.',
   },
-  EN:{ flag:'🇬🇧', color:'#3b82f6', hero1:'AI-POWERED', hero2:'CRYPTO ANALYSIS', sub:'Institutional-grade AI analysis for 200+ coins using Smart Money Concepts, Wyckoff and ICT methodologies.', cta:'Free Analysis', tg:'Telegram Channel', f1:'Features', f2:'How It Works', f3:'Pricing', statA:'ANALYSES', statB:'COINS', statC:'USERS', statD:'LAYERS', step1:'Select Coin', step1d:'Choose from 200+ coins.', step2:'AI Analyzes', step2d:'7-layer engine completes in seconds.', step3:'Get Signal', step3d:'Entry, stop and targets sent to Telegram.', pTitle:'CHOOSE A PLAN', free:'Start Free', pro:'Go Pro', elite:'Go Elite', perMonth:'/month', forever:'Free forever', ctaTitle:'GO AI MODE', ctaSub:'CHARTOS analysis for 200+ coins.', disc:'Crypto investments carry risk. Not financial advice.',
-    feats:[['🧠','Smart Money Concepts','Auto-detection of order blocks, FVG, liquidity sweeps.'],['📊','Wyckoff Methodology','Accumulation/distribution phases, spring and upthrust.'],['🎯','ICT Concepts','OTE, Breaker Block and Mitigation Block in real time.'],['🔗','On-Chain Analysis','Whale movements and exchange flows for confirmation.'],['⚡','Manipulation Detection','Detects stop hunts and liquidity grabs in advance.'],['📱','Telegram Signals','Every analysis automatically sent to channel.']],
-    plans:[{n:'STARTER',p:'$0',per:'Free forever',f:['5 analyses/day','200+ coins','Telegram signals','TradingView chart']},{n:'PRO',p:'$29',per:'/month',f:['Unlimited analyses','Priority queue','Custom Telegram','Portfolio tracking']},{n:'ELITE',p:'$79',per:'/month',f:['Everything in Pro','1:1 consulting','API access','Strategy report']}],
-  },
-  DE:{ flag:'🇩🇪', color:'#f59e0b', hero1:'KI-GESTÜTZTE', hero2:'KRYPTO-ANALYSE', sub:'Institutionelle KI-Analyse für 200+ Coins mit Smart Money Concepts, Wyckoff und ICT Methoden über CHARTOS Engine.', cta:'Kostenlose Analyse', tg:'Telegram Kanal', f1:'Funktionen', f2:'Wie es Funktioniert', f3:'Preise', statA:'ANALYSEN', statB:'COINS', statC:'NUTZER', statD:'SCHICHTEN', step1:'Coin Wählen', step1d:'Wählen Sie aus 200+ Coins.', step2:'KI Analysiert', step2d:'7-Schichten-Engine in Sekunden.', step3:'Signal Erhalten', step3d:'Einstieg, Stop und Ziele an Telegram.', pTitle:'PLAN WÄHLEN', free:'Kostenlos Starten', pro:'Pro Werden', elite:'Elite Werden', perMonth:'/Monat', forever:'Für immer kostenlos', ctaTitle:'KI-MODUS AKTIVIEREN', ctaSub:'CHARTOS-Analyse für 200+ Coins.', disc:'Krypto-Investitionen sind risikobehaftet. Keine Finanzberatung.',
-    feats:[['🧠','Smart Money Concepts','Automatische Erkennung von Order Blocks, FVG, Liquiditätssweeps.'],['📊','Wyckoff-Methodik','Akkumulations/Distributions-Phasen, Spring und Upthrust.'],['🎯','ICT-Konzepte','OTE, Breaker Block in Echtzeit.'],['🔗','On-Chain-Analyse','Whale-Bewegungen zur Signalbestätigung.'],['⚡','Manipulationserkennung','Erkennt Stop-Hunts im Voraus.'],['📱','Telegram-Signale','Jede Analyse automatisch an Telegram.']],
-    plans:[{n:'STARTER',p:'$0',per:'Für immer',f:['5 Analysen/Tag','200+ Coins','Telegram-Signale','TradingView-Chart']},{n:'PRO',p:'$29',per:'/Monat',f:['Unbegrenzte Analysen','Prioritätswarteschlange','Benutzerdefiniert TG','Portfolio']},{n:'ELITE',p:'$79',per:'/Monat',f:['Alles in Pro','1:1 Beratung','API-Zugang','Strategiebericht']}],
-  },
-  FR:{ flag:'🇫🇷', color:'#8b5cf6', hero1:'ANALYSE CRYPTO', hero2:'PROPULSÉE PAR IA', sub:"Analyse IA institutionnelle pour 200+ cryptos avec Smart Money Concepts, Wyckoff et méthodes ICT via CHARTOS Engine.", cta:'Analyse Gratuite', tg:'Canal Telegram', f1:'Fonctionnalités', f2:'Comment ça Marche', f3:'Tarifs', statA:'ANALYSES', statB:'COINS', statC:'UTILISATEURS', statD:'COUCHES', step1:'Choisir Coin', step1d:'Choisissez parmi 200+ coins.', step2:"L'IA Analyse", step2d:'Le moteur à 7 couches en secondes.', step3:'Recevoir Signal', step3d:'Entrée, stop et objectifs envoyés à Telegram.', pTitle:'CHOISIR UN PLAN', free:'Commencer Gratuitement', pro:'Passer Pro', elite:'Passer Élite', perMonth:'/mois', forever:'Gratuit pour toujours', ctaTitle:"ACTIVER L'IA", ctaSub:'Analyse CHARTOS pour 200+ coins.', disc:"Les investissements crypto comportent des risques. Pas de conseils financiers.",
-    feats:[['🧠','Smart Money Concepts','Détection automatique des blocs, FVG, balayages de liquidité.'],['📊','Méthodologie Wyckoff','Phases accumulation/distribution, spring et upthrust.'],['🎯','Concepts ICT','OTE, Breaker Block en temps réel.'],['🔗','Analyse On-Chain','Mouvements des baleines pour confirmation.'],['⚡','Détection de Manipulation','Détecte stop hunts à l\'avance.'],['📱','Signaux Telegram','Chaque analyse envoyée automatiquement.']],
-    plans:[{n:'DÉBUTANT',p:'$0',per:'Gratuit toujours',f:['5 analyses/jour','200+ coins','Signaux Telegram','Graphique TradingView']},{n:'PRO',p:'$29',per:'/mois',f:['Analyses illimitées','File prioritaire','Telegram personnalisé','Portefeuille']},{n:'ÉLITE',p:'$79',per:'/mois',f:["Tout dans Pro",'Conseil 1:1','Accès API','Rapport stratégique']}],
+  EN: {
+    nav: ['Features','How It Works','Pricing','Telegram'],
+    cta: 'Start Free',
+    ctaSub: 'No credit card required',
+    badge: 'LIVE — 24/7 ACTIVE',
+    hero1: 'INSTITUTIONAL-GRADE',
+    hero2: 'CRYPTO ANALYSIS',
+    heroSub: 'Real-time institutional analysis for 200+ coins powered by CHARTOS APEX 4.0, combining Market Maker algorithms, ICT concepts and Wyckoff methodology.',
+    statLabels: ['Analyses Done','Coins Supported','Active Users','Analysis Layers'],
+    stats: ['47,200+','200+','8,400+','10'],
+    trustBadges: ['256-bit SSL','Real-Time Data','99.9% Uptime','24/7 Support'],
+    howTitle: 'HOW IT WORKS',
+    howSteps: [
+      { n:'01', t:'Select Coin', d:'Choose from 200+ crypto assets to analyze.' },
+      { n:'02', t:'APEX Analysis', d:'10-layer algorithm detects Market Maker moves, liquidity pools and institutional footprint in seconds.' },
+      { n:'03', t:'Get Signal', d:'Professional signal with entry zone, stop loss and 3 targets with R:R calculation sent to Telegram.' },
+    ],
+    featTitle: 'TECHNOLOGY',
+    feats: [
+      { icon:'⬡', t:'Market Maker Algorithm', d:'Phase A-B-C-D engine for institutional manipulation detection and weak hand liquidation analysis.' },
+      { icon:'◈', t:'ICT + Wyckoff Fusion', d:'Silver Bullet, Judas Swing, Turtle Soup Pro and Wyckoff Spring/Upthrust real-time detection.' },
+      { icon:'◉', t:'10-Layer Analysis', d:'Full spectrum from HTF structure to on-chain data, funding rate to whale movements.' },
+      { icon:'◆', t:'Quantitative Edge', d:'Backtested winrate, expectancy, Sharpe ratio and max drawdown with proven edge.' },
+      { icon:'◎', t:'On-Chain Integration', d:'SOPR, MVRV-Z, Puell Multiple, exchange flow and whale wallet tracking in real-time.' },
+      { icon:'◐', t:'Telegram Automation', d:'Every analysis automatically sent to signal channel. IFTTT tweet flow active.' },
+    ],
+    planTitle: 'PRICING',
+    planSub: 'Gain institutional advantage in crypto markets',
+    ctaTitle: 'SEIZE THE INSTITUTIONAL EDGE',
+    ctaDesc: '90% of retail investors lose to the market. See what Market Makers see with CHARTOS APEX 4.0.',
+    ctaBtn: 'Start Free Analysis',
+    footer: 'This platform does not provide financial advice. Crypto investments carry high risk. DYOR.',
   },
 };
 
-export default function Landing() {
-  const [market, setMarket] = useState(null);
-  const [fg, setFg] = useState(null);
-  const [count, setCount] = useState({a:0,u:0});
-  const [lang, setLang] = useState('TR');
+function Counter({ target, duration=2000 }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef();
+  useEffect(() => {
+    const num = parseInt(target.replace(/\D/g,''));
+    const step = num / (duration / 16);
+    let cur = 0;
+    ref.current = setInterval(() => {
+      cur = Math.min(cur + step, num);
+      setVal(Math.floor(cur));
+      if (cur >= num) clearInterval(ref.current);
+    }, 16);
+    return () => clearInterval(ref.current);
+  }, [target]);
+  return <span>{val.toLocaleString()}{target.includes('+') ? '+' : ''}</span>;
+}
 
-  // Aktif dil paketi
-  const L = T[lang];
+export default function Landing() {
+  const [lang, setLang] = useState('TR');
+  const [scrolled, setScrolled] = useState(false);
+  const [started, setStarted] = useState(false);
+  const L = COPY[lang] || COPY.TR;
+  const plans = PLANS[lang] || PLANS.TR;
 
   useEffect(() => {
-    try { const s = localStorage.getItem('dts_lang'); if(s && T[s]) setLang(s); } catch {}
-    fetch('https://api.coingecko.com/api/v3/global').then(r=>r.json()).then(d=>setMarket(d.data)).catch(()=>{});
-    fetch('https://api.alternative.me/fng/?limit=1').then(r=>r.json()).then(d=>setFg(d.data?.[0])).catch(()=>{});
-    let a=0,u=0;
-    const t=setInterval(()=>{a=Math.min(a+215,12847);u=Math.min(u+54,3200);setCount({a,u});if(a>=12847)clearInterval(t);},16);
-    return()=>clearInterval(t);
-  },[]);
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', onScroll);
+    const t = setTimeout(() => setStarted(true), 300);
+    return () => { window.removeEventListener('scroll', onScroll); clearTimeout(t); };
+  }, []);
 
-  // Dil değiştir — doğrudan string key
-  function setLangAndSave(code) {
-    setLang(code);
-    try { localStorage.setItem('dts_lang', code); } catch {}
-  }
-
-  const fmtB=n=>n>=1e12?`$${(n/1e12).toFixed(2)}T`:n>=1e9?`$${(n/1e9).toFixed(1)}B`:'...';
-  const fgColor=v=>v<25?'#ef4444':v<45?'#f97316':v<55?'#f59e0b':v<75?'#22c55e':'#00d4aa';
-
-  // Dil butonları — 4 ayrı buton, dropdown yok
-  const LangBar = () => (
-    <div style={{display:'flex',gap:4}}>
-      {['TR','EN','DE','FR'].map(code => {
-        const active = lang === code;
-        const meta = T[code];
-        return (
-          <button
-            key={code}
-            onClick={() => setLangAndSave(code)}
-            style={{
-              padding:'6px 10px',
-              borderRadius:8,
-              border: active ? `1px solid ${meta.color}` : '1px solid #162440',
-              background: active ? `${meta.color}22` : '#0d1421',
-              color: active ? meta.color : '#475569',
-              fontSize:12,
-              fontWeight: active ? 800 : 500,
-              cursor:'pointer',
-              display:'flex',
-              alignItems:'center',
-              gap:4,
-              transition:'all .15s',
-            }}
-          >
-            <span>{meta.flag}</span>
-            <span>{code}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  const goApp = () => window.location.href = '/app';
 
   return (
-    <div style={{minHeight:'100vh',background:'#04070f',color:'#e2e8f0',fontFamily:"-apple-system,system-ui,sans-serif",overflowX:'hidden'}}>
-      <Head><title>Deep Trade Scan — CHARTOS AI</title></Head>
+    <>
+      <Head>
+        <title>Deep Trade Scan — Kurumsal Kripto Analizi</title>
+        <meta name="description" content="CHARTOS APEX 4.0 ile 200+ coin için Market Maker algoritması, ICT ve Wyckoff tabanlı kurumsal kripto analizi."/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+      </Head>
+
       <style>{`
-        *{box-sizing:border-box;margin:0;padding:0}a{text-decoration:none;color:inherit}
-        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#162440;border-radius:2px}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
-        @keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(18px)}}
-        .hov:hover{opacity:0.85;transform:translateY(-2px);transition:all .2s}
-        .hov2:hover{border-color:#1a6aff!important;transition:border-color .2s}
-        .card:hover{border-color:#1a3060!important;transform:translateY(-4px);transition:all .3s}
-        @media(max-width:768px){.nl{display:none!important}.fg{grid-template-columns:1fr!important}.pg{grid-template-columns:1fr!important}.sg{grid-template-columns:1fr!important}.fi{grid-template-columns:1fr 1fr!important}.lbar{gap:3px!important}}
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { background: #020509; color: #e2e8f0; font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #020509; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+        @keyframes scanH { 0% { transform:translateX(-100%); } 100% { transform:translateX(400%); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes gradShift { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
+        .hero-title { animation: fadeUp 0.8s ease both; }
+        .hero-sub { animation: fadeUp 0.8s ease 0.15s both; }
+        .hero-cta { animation: fadeUp 0.8s ease 0.3s both; }
+        .hero-stats { animation: fadeUp 0.8s ease 0.45s both; }
+        .logo-float { animation: float 4s ease-in-out infinite; }
+        .nav-link { color: #475569; font-size: 13px; font-weight: 500; text-decoration: none; transition: color 0.2s; letter-spacing: 0.3px; }
+        .nav-link:hover { color: #e2e8f0; }
+        .btn-primary { background: linear-gradient(135deg, #1d4ed8, #6d28d9); border: none; border-radius: 12px; padding: 15px 28px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.5px; transition: all 0.2s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(59,130,246,0.4); }
+        .btn-ghost { background: transparent; border: 1px solid #1e293b; border-radius: 12px; padding: 14px 24px; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Space Grotesk', sans-serif; transition: all 0.2s; }
+        .btn-ghost:hover { border-color: #3b82f6; color: #93c5fd; }
+        .feat-card { background: #080f1a; border: 1px solid #0f1923; border-radius: 16px; padding: 28px; transition: all 0.3s; }
+        .feat-card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        .plan-card { background: #08111e; border-radius: 20px; padding: 32px; transition: all 0.3s; position: relative; overflow: hidden; }
+        .plan-card:hover { transform: translateY(-6px); }
+        @media (max-width: 768px) {
+          .nav-links { display: none !important; }
+          .hero-grid { grid-template-columns: 1fr !important; }
+          .feat-grid { grid-template-columns: 1fr !important; }
+          .plan-grid { grid-template-columns: 1fr !important; }
+          .stat-grid { grid-template-columns: repeat(2,1fr) !important; }
+          .step-grid { grid-template-columns: 1fr !important; }
+          .cta-section { padding: 60px 20px !important; }
+        }
       `}</style>
 
       {/* NAV */}
-      <nav style={{position:'fixed',top:0,left:0,right:0,zIndex:200,height:60,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',background:'rgba(4,7,15,0.95)',backdropFilter:'blur(20px)',borderBottom:'1px solid #0f1e35',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-          <img src="/logo.webp" style={{width:32,height:32,borderRadius:8,objectFit:'cover'}} alt="DTS"/>
-          <span style={{fontSize:14,fontWeight:900,letterSpacing:2,color:'#fff'}}>DEEP TRADE SCAN</span>
+      <nav style={{position:'fixed',top:0,left:0,right:0,zIndex:1000,padding:'0 5%',height:64,display:'flex',alignItems:'center',justifyContent:'space-between',background:scrolled?'rgba(2,5,9,0.95)':'transparent',backdropFilter:scrolled?'blur(20px)':'none',borderBottom:scrolled?'1px solid #0f1923':'1px solid transparent',transition:'all 0.3s'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#0f1f3d,#1a3a6a)',border:'1px solid rgba(59,130,246,0.3)',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <img src="/logo.webp" style={{width:30,height:30,objectFit:'cover',borderRadius:7}} alt="DTS" onError={e=>e.target.style.display='none'}/>
+          </div>
+          <div>
+            <div style={{fontSize:14,fontWeight:800,letterSpacing:1,lineHeight:1}}>DEEP TRADE SCAN</div>
+            <div style={{fontSize:8,color:'#3b82f6',letterSpacing:3,fontWeight:600}}>CHARTOS APEX 4.0</div>
+          </div>
         </div>
-        <ul style={{display:'flex',gap:24,listStyle:'none'}} className="nl">
-          <li><a href="#features" style={{color:'#475569',fontSize:13}}>{L.f1}</a></li>
-          <li><a href="#how" style={{color:'#475569',fontSize:13}}>{L.f2}</a></li>
-          <li><a href="#pricing" style={{color:'#475569',fontSize:13}}>{L.f3}</a></li>
-          <li><a href="https://t.me/deeptradescan" style={{color:'#475569',fontSize:13}}>Telegram</a></li>
-        </ul>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-          <div className="lbar"><LangBar/></div>
-          <a href="/app" style={{background:'linear-gradient(135deg,#1a6aff,#7c3aed)',borderRadius:9,padding:'9px 18px',color:'#fff',fontSize:13,fontWeight:700,flexShrink:0}} className="hov">🔱 {L.cta}</a>
+
+        <div className="nav-links" style={{display:'flex',alignItems:'center',gap:32}}>
+          {L.nav.map((n,i)=>(
+            <a key={i} className="nav-link" href={`#${['features','how','pricing','telegram'][i]}`}>{n}</a>
+          ))}
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',background:'#0a1220',border:'1px solid #0f1923',borderRadius:8,padding:3,gap:2}}>
+            {['TR','EN'].map(l=>(
+              <button key={l} onClick={()=>setLang(l)} style={{background:lang===l?'#1d4ed8':'transparent',border:'none',borderRadius:6,padding:'5px 10px',color:lang===l?'#fff':'#475569',fontSize:10,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif",transition:'all 0.2s'}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <button className="btn-primary" onClick={goApp} style={{padding:'9px 18px',fontSize:12}}>
+            {L.cta}
+          </button>
         </div>
       </nav>
 
       {/* HERO */}
-      <section style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:'120px 24px 80px',position:'relative',overflow:'hidden'}}>
-        <div style={{position:'absolute',inset:0,zIndex:0,pointerEvents:'none'}}>
-          <div style={{position:'absolute',top:'8%',left:'10%',width:500,height:500,background:'radial-gradient(ellipse,rgba(26,106,255,0.09),transparent 70%)',animation:'float 8s ease-in-out infinite'}}/>
-          <div style={{position:'absolute',bottom:'5%',right:'8%',width:400,height:400,background:'radial-gradient(ellipse,rgba(124,58,237,0.07),transparent 70%)',animation:'float2 10s ease-in-out infinite'}}/>
-          <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(26,106,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(26,106,255,0.04) 1px,transparent 1px)',backgroundSize:'80px 80px',maskImage:'radial-gradient(ellipse 80% 80% at 50% 50%,black 30%,transparent 100%)'}}/>
-        </div>
-        <div style={{position:'relative',zIndex:2,maxWidth:880}}>
-          <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(26,106,255,0.1)',border:'1px solid rgba(26,106,255,0.3)',borderRadius:100,padding:'6px 18px',fontSize:11,fontWeight:600,color:'#60a5fa',letterSpacing:2,marginBottom:24}}>
-            <span style={{width:6,height:6,borderRadius:'50%',background:'#10b981',boxShadow:'0 0 8px #10b981',display:'block',animation:'pulse 2s ease infinite'}}/>LIVE — 7/24
+      <section style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'120px 5% 80px',position:'relative',overflow:'hidden'}}>
+        {/* BG */}
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(59,130,246,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.025) 1px,transparent 1px)',backgroundSize:'80px 80px'}}/>
+        <div style={{position:'absolute',top:'30%',left:'20%',width:500,height:500,background:'radial-gradient(ellipse,rgba(29,78,216,0.08),transparent 70%)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',top:'20%',right:'15%',width:400,height:400,background:'radial-gradient(ellipse,rgba(109,40,217,0.06),transparent 70%)',pointerEvents:'none'}}/>
+
+        <div style={{maxWidth:1100,width:'100%',position:'relative',zIndex:1}}>
+          {/* Badge */}
+          <div style={{display:'flex',justifyContent:'center',marginBottom:32}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:100,padding:'7px 16px'}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'#10b981',animation:'pulse 2s infinite'}}/>
+              <span style={{fontSize:11,color:'#60a5fa',fontWeight:700,letterSpacing:2}}>{L.badge}</span>
+            </div>
           </div>
-          <div style={{marginBottom:18}}>
-            <img src="/logo.webp" style={{width:88,height:88,borderRadius:20,objectFit:'cover',boxShadow:'0 0 50px rgba(26,106,255,0.3)'}} alt="DTS"/>
+
+          {/* Logo — tek */}
+          <div style={{display:'flex',justifyContent:'center',marginBottom:32}} className="logo-float">
+            <div style={{width:90,height:90,borderRadius:24,background:'linear-gradient(135deg,#0a1628,#0f1f3d)',border:'1px solid rgba(59,130,246,0.25)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 60px rgba(59,130,246,0.15)'}}>
+              <img src="/logo.webp" style={{width:68,height:68,objectFit:'cover',borderRadius:16}} alt="Deep Trade Scan" onError={e=>e.target.style.display='none'}/>
+            </div>
           </div>
-          <h1 style={{fontSize:'clamp(44px,8vw,96px)',fontWeight:900,lineHeight:0.92,letterSpacing:4,marginBottom:10}}>
-            <span style={{display:'block',color:'#fff'}}>{L.hero1}</span>
-            <span style={{display:'block',background:'linear-gradient(135deg,#1a6aff,#06b6d4,#7c3aed)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{L.hero2}</span>
-          </h1>
-          <p style={{fontSize:15,color:'#475569',lineHeight:1.75,maxWidth:540,margin:'18px auto 36px'}}>{L.sub}</p>
-          <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap',marginBottom:52}}>
-            <a href="/app" style={{background:'linear-gradient(135deg,#1a6aff,#7c3aed)',borderRadius:13,padding:'14px 34px',color:'#fff',fontSize:15,fontWeight:700,display:'inline-flex',alignItems:'center',gap:8,boxShadow:'0 8px 32px rgba(26,106,255,0.3)'}} className="hov">🔱 {L.cta}</a>
-            <a href="https://t.me/deeptradescan" style={{background:'transparent',border:'1px solid #162440',borderRadius:13,padding:'14px 34px',color:'#e2e8f0',fontSize:15,fontWeight:600,display:'inline-flex',alignItems:'center',gap:8}} className="hov2">✈️ {L.tg}</a>
+
+          {/* Headline */}
+          <div className="hero-title" style={{textAlign:'center',marginBottom:20}}>
+            <div style={{fontSize:'clamp(14px,2vw,16px)',color:'#3b82f6',fontWeight:700,letterSpacing:5,marginBottom:12}}>{L.hero1}</div>
+            <h1 style={{fontSize:'clamp(42px,7vw,88px)',fontWeight:800,lineHeight:0.95,letterSpacing:'-2px',background:'linear-gradient(135deg,#f1f5f9 30%,#94a3b8)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>
+              {L.hero2}
+            </h1>
           </div>
-          <div style={{display:'flex',maxWidth:760,margin:'0 auto 16px',border:'1px solid #162440',borderRadius:18,overflow:'hidden',background:'#0a1220'}}>
-            {[[Math.floor(count.a).toLocaleString()+'+',L.statA],['200+',L.statB],[Math.floor(count.u).toLocaleString()+'+',L.statC],['7',L.statD]].map(([n,l],i)=>(
-              <div key={i} style={{flex:1,padding:'20px 10px',textAlign:'center',borderRight:i<3?'1px solid #0f1e35':'none'}}>
-                <div style={{fontSize:30,fontWeight:900,background:'linear-gradient(135deg,#1a6aff,#06b6d4)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{n}</div>
-                <div style={{fontSize:9,color:'#475569',letterSpacing:1.5,marginTop:4}}>{l}</div>
+
+          {/* Sub */}
+          <div className="hero-sub" style={{textAlign:'center',maxWidth:600,margin:'0 auto 40px'}}>
+            <p style={{fontSize:'clamp(14px,1.8vw,17px)',color:'#64748b',lineHeight:1.7,fontWeight:400}}>{L.heroSub}</p>
+          </div>
+
+          {/* CTA Buttons */}
+          <div className="hero-cta" style={{display:'flex',justifyContent:'center',gap:12,marginBottom:60,flexWrap:'wrap'}}>
+            <button className="btn-primary" onClick={goApp}>
+              ⚡ {L.ctaBtn}
+            </button>
+            <a href="https://t.me/deeptradescan" target="_blank" className="btn-ghost" style={{display:'inline-flex',alignItems:'center',gap:8,textDecoration:'none'}}>
+              ✈️ Telegram Kanalı
+            </a>
+          </div>
+
+          {/* Trust badges */}
+          <div style={{display:'flex',justifyContent:'center',gap:16,marginBottom:60,flexWrap:'wrap'}}>
+            {L.trustBadges.map((b,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:6}}>
+                <div style={{width:4,height:4,borderRadius:'50%',background:'#10b981'}}/>
+                <span style={{fontSize:11,color:'#334155',fontWeight:500}}>{b}</span>
               </div>
             ))}
           </div>
-          {market&&fg&&(
-            <div style={{display:'flex',justifyContent:'center',gap:20,fontSize:12,flexWrap:'wrap'}}>
-              <span style={{color:'#334155'}}>MCap <span style={{color:'#3b82f6',fontWeight:700}}>{fmtB(market.total_market_cap?.usd)}</span></span>
-              <span style={{color:'#334155'}}>BTC <span style={{color:'#f59e0b',fontWeight:700}}>{market.market_cap_percentage?.btc?.toFixed(1)}%</span></span>
-              <span style={{color:'#334155'}}>F&G <span style={{color:fgColor(+fg.value),fontWeight:700}}>{fg.value}</span></span>
-            </div>
-          )}
+
+          {/* Stats */}
+          <div className="hero-stats stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:1,background:'#0f1923',borderRadius:16,overflow:'hidden',border:'1px solid #0f1923'}}>
+            {L.stats.map((s,i)=>(
+              <div key={i} style={{background:'#080f1a',padding:'24px 20px',textAlign:'center'}}>
+                <div style={{fontSize:'clamp(24px,3vw,36px)',fontWeight:800,color:'#f1f5f9',fontFamily:"'JetBrains Mono',monospace",lineHeight:1}}>
+                  {started ? <Counter target={s}/> : '0'}
+                </div>
+                <div style={{fontSize:10,color:'#334155',letterSpacing:2,fontWeight:600,marginTop:6}}>{L.statLabels[i]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section id="how" style={{padding:'100px 5%',borderTop:'1px solid #0a0f1a'}}>
+        <div style={{maxWidth:1100,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:64}}>
+            <div style={{fontSize:11,color:'#3b82f6',letterSpacing:4,fontWeight:700,marginBottom:12}}>{L.howTitle}</div>
+            <h2 style={{fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-1px'}}>3 Adımda Kurumsal Analiz</h2>
+          </div>
+          <div className="step-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:2,position:'relative'}}>
+            {L.howSteps.map((step,i)=>(
+              <div key={i} style={{background:'#080f1a',border:'1px solid #0f1923',padding:'36px 28px',position:'relative',borderRadius:i===0?'16px 0 0 16px':i===2?'0 16px 16px 0':'0'}}>
+                <div style={{fontSize:'clamp(48px,5vw,72px)',fontWeight:800,color:'#0a1628',fontFamily:"'JetBrains Mono',monospace",lineHeight:1,marginBottom:20,letterSpacing:'-2px'}}>{step.n}</div>
+                <div style={{width:32,height:2,background:'linear-gradient(90deg,#3b82f6,#6d28d9)',borderRadius:1,marginBottom:16}}/>
+                <div style={{fontSize:16,fontWeight:700,color:'#f1f5f9',marginBottom:10}}>{step.t}</div>
+                <div style={{fontSize:13,color:'#64748b',lineHeight:1.7}}>{step.d}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* FEATURES */}
-      <section style={{padding:'80px 24px',maxWidth:1100,margin:'0 auto'}} id="features">
-        <div style={{fontSize:10,color:'#1a6aff',letterSpacing:4,marginBottom:12,display:'flex',alignItems:'center',gap:10}}><span style={{width:28,height:1,background:'#1a6aff',display:'block'}}/>{L.f1.toUpperCase()}</div>
-        <h2 style={{fontSize:'clamp(30px,4vw,52px)',fontWeight:900,letterSpacing:2,color:'#fff',lineHeight:1.1}}>CHARTOS ENGINE — {L.statD === 'KATMAN' ? '7 KATMAN' : L.statD === 'LAYERS' ? '7 LAYERS' : L.statD === 'SCHICHTEN' ? '7 SCHICHTEN' : '7 COUCHES'}</h2>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginTop:44}} className="fg">
-          {L.feats.map(([icon,title,desc],i)=>(
-            <div key={i} style={{background:'#0a1220',border:'1px solid #0f1e35',borderRadius:16,padding:26,transition:'all .3s'}} className="card">
-              <div style={{width:42,height:42,background:'rgba(26,106,255,0.1)',border:'1px solid rgba(26,106,255,0.2)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:19,marginBottom:14}}>{icon}</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:7}}>{title}</div>
-              <div style={{fontSize:12,color:'#475569',lineHeight:1.7}}>{desc}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* HOW */}
-      <section style={{padding:'80px 24px',maxWidth:1100,margin:'0 auto'}} id="how">
-        <div style={{fontSize:10,color:'#1a6aff',letterSpacing:4,marginBottom:12,display:'flex',alignItems:'center',gap:10}}><span style={{width:28,height:1,background:'#1a6aff',display:'block'}}/>{L.f2.toUpperCase()}</div>
-        <h2 style={{fontSize:'clamp(30px,4vw,52px)',fontWeight:900,letterSpacing:2,color:'#fff',lineHeight:1.1}}>{L.step1} → {L.step2} → {L.step3}</h2>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32,marginTop:44,position:'relative'}} className="sg">
-          <div style={{position:'absolute',top:26,left:'16%',right:'16%',height:1,background:'linear-gradient(90deg,transparent,#162440,#162440,transparent)'}}/>
-          {[[L.step1,L.step1d,'01'],[L.step2,L.step2d,'02'],[L.step3,L.step3d,'03']].map(([title,desc,num],i)=>(
-            <div key={i} style={{textAlign:'center'}}>
-              <div style={{width:52,height:52,borderRadius:'50%',background:'#0a1220',border:'1px solid #162440',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:900,color:'#1a6aff',margin:'0 auto 18px',position:'relative',zIndex:1}}>{num}</div>
-              <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:7}}>{title}</div>
-              <div style={{fontSize:12,color:'#475569',lineHeight:1.7}}>{desc}</div>
-            </div>
-          ))}
+      <section id="features" style={{padding:'100px 5%',background:'#030711'}}>
+        <div style={{maxWidth:1100,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:64}}>
+            <div style={{fontSize:11,color:'#a855f7',letterSpacing:4,fontWeight:700,marginBottom:12}}>{L.featTitle}</div>
+            <h2 style={{fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-1px'}}>CHARTOS APEX 4.0</h2>
+            <p style={{fontSize:15,color:'#475569',marginTop:12,maxWidth:500,margin:'12px auto 0'}}>2026 Market Maker algoritması ile 10 katmanlı ultra analiz motoru</p>
+          </div>
+          <div className="feat-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16}}>
+            {L.feats.map((f,i)=>(
+              <div key={i} className="feat-card">
+                <div style={{fontSize:24,marginBottom:16,color:'#3b82f6',fontFamily:"'JetBrains Mono',monospace"}}>{f.icon}</div>
+                <div style={{fontSize:15,fontWeight:700,color:'#f1f5f9',marginBottom:8}}>{f.t}</div>
+                <div style={{fontSize:13,color:'#475569',lineHeight:1.7}}>{f.d}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* PRICING */}
-      <section style={{padding:'80px 24px',maxWidth:1100,margin:'0 auto'}} id="pricing">
-        <div style={{fontSize:10,color:'#1a6aff',letterSpacing:4,marginBottom:12,display:'flex',alignItems:'center',gap:10}}><span style={{width:28,height:1,background:'#1a6aff',display:'block'}}/>{L.f3.toUpperCase()}</div>
-        <h2 style={{fontSize:'clamp(30px,4vw,52px)',fontWeight:900,letterSpacing:2,color:'#fff',lineHeight:1.1}}>{L.pTitle}</h2>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginTop:44}} className="pg">
-          {L.plans.map((plan,i)=>{
-            const isPro = i===1;
-            return (
-              <div key={i} style={{background:isPro?'linear-gradient(135deg,rgba(26,106,255,0.08),rgba(124,58,237,0.08))':'#0a1220',border:isPro?'1px solid #1a6aff':'1px solid #0f1e35',borderRadius:20,padding:'32px 24px',position:'relative'}} className="card">
-                {isPro&&<div style={{position:'absolute',top:-10,left:'50%',transform:'translateX(-50%)',background:'linear-gradient(135deg,#1a6aff,#7c3aed)',borderRadius:100,padding:'3px 14px',fontSize:9,fontWeight:800,letterSpacing:2,color:'#fff',whiteSpace:'nowrap'}}>★ TOP</div>}
-                <div style={{fontSize:10,color:'#475569',letterSpacing:3,marginBottom:12}}>{plan.n}</div>
-                <div style={{fontSize:44,fontWeight:900,color:'#fff',lineHeight:1}}>{plan.p}</div>
-                <div style={{fontSize:12,color:'#475569',marginBottom:24}}>{plan.per}</div>
-                <ul style={{listStyle:'none',marginBottom:24}}>
-                  {plan.f.map((f,j)=>(
-                    <li key={j} style={{display:'flex',alignItems:'center',gap:7,fontSize:12,color:'#64748b',padding:'6px 0',borderBottom:'1px solid #0f1e35'}}>
-                      <span style={{color:'#10b981',fontSize:14}}>✓</span>{f}
-                    </li>
+      <section id="pricing" style={{padding:'100px 5%'}}>
+        <div style={{maxWidth:1100,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:64}}>
+            <div style={{fontSize:11,color:'#3b82f6',letterSpacing:4,fontWeight:700,marginBottom:12}}>{L.planTitle}</div>
+            <h2 style={{fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-1px'}}>{L.planSub}</h2>
+          </div>
+          <div className="plan-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,alignItems:'start'}}>
+            {plans.map((plan,i)=>(
+              <div key={i} className="plan-card" style={{border:`1px solid ${plan.popular?plan.color+'60':'#0f1923'}`,boxShadow:plan.popular?`0 0 50px rgba(59,130,246,0.12)`:''  ,marginTop:plan.popular?0:16}}>
+                {plan.popular&&(
+                  <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%) translateY(-50%)',background:'linear-gradient(135deg,#1d4ed8,#6d28d9)',borderRadius:100,padding:'5px 16px',fontSize:10,fontWeight:800,letterSpacing:2,whiteSpace:'nowrap'}}>
+                    EN POPÜLER
+                  </div>
+                )}
+                <div style={{fontSize:10,color:plan.color,letterSpacing:3,fontWeight:700,marginBottom:10}}>{plan.name}</div>
+                <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:6}}>
+                  <span style={{fontSize:42,fontWeight:800,color:'#f1f5f9',fontFamily:"'JetBrains Mono',monospace",lineHeight:1}}>{plan.price}</span>
+                  <span style={{fontSize:13,color:'#475569'}}>{plan.period}</span>
+                </div>
+                <div style={{height:1,background:'#0f1923',margin:'20px 0'}}/>
+                <div style={{marginBottom:28}}>
+                  {plan.features.map((f,fi)=>(
+                    <div key={fi} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
+                      <div style={{width:18,height:18,borderRadius:5,background:`${plan.color}18`,border:`1px solid ${plan.color}35`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1}}>
+                        <div style={{width:5,height:5,borderRadius:'50%',background:plan.color}}/>
+                      </div>
+                      <span style={{fontSize:13,color:'#94a3b8',lineHeight:1.5}}>{f}</span>
+                    </div>
                   ))}
-                </ul>
-                <a href={isPro||i===2?'https://t.me/deeptradescan':'/app'} style={{display:'block',padding:12,borderRadius:10,fontSize:13,fontWeight:700,textAlign:'center',background:isPro?'linear-gradient(135deg,#1a6aff,#7c3aed)':'transparent',border:isPro?'none':'1px solid #162440',color:'#fff'}} className="hov">
-                  {i===0?L.free:i===1?L.pro:L.elite}
-                </a>
+                </div>
+                <button onClick={i===0?goApp:()=>alert('İletişim için: @deeptradescan')}
+                  style={{width:'100%',background:plan.popular?'linear-gradient(135deg,#1d4ed8,#6d28d9)':plan.name==='ELİTE'||plan.name==='ELITE'?`linear-gradient(135deg,${plan.color}cc,${plan.color}88)`:'#0f1923',border:`1px solid ${plan.popular?'transparent':plan.name==='ELİTE'||plan.name==='ELITE'?plan.color+'60':'#1e293b'}`,borderRadius:12,padding:'14px',color:plan.popular||plan.name==='ELİTE'||plan.name==='ELITE'?'#fff':'#475569',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:"'Space Grotesk',sans-serif",transition:'all 0.2s'}}>
+                  {i===0?`→ ${L.cta}`:`→ ${plan.name} Seç`}
+                </button>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section style={{padding:'100px 24px',textAlign:'center',background:'radial-gradient(ellipse 60% 60% at 50% 50%,rgba(26,106,255,0.06),transparent)'}}>
-        <h2 style={{fontSize:'clamp(36px,5vw,68px)',fontWeight:900,letterSpacing:3,color:'#fff',marginBottom:16,lineHeight:1}}>{L.ctaTitle}</h2>
-        <p style={{fontSize:15,color:'#475569',marginBottom:36,lineHeight:1.75,maxWidth:480,margin:'0 auto 36px'}}>{L.ctaSub}</p>
-        <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <a href="/app" style={{background:'linear-gradient(135deg,#1a6aff,#7c3aed)',borderRadius:13,padding:'14px 34px',color:'#fff',fontSize:15,fontWeight:700,boxShadow:'0 8px 32px rgba(26,106,255,0.3)'}} className="hov">🔱 {L.cta}</a>
-          <a href="https://t.me/deeptradescan" style={{background:'transparent',border:'1px solid #162440',borderRadius:13,padding:'14px 34px',color:'#e2e8f0',fontSize:15,fontWeight:600}} className="hov2">✈️ {L.tg}</a>
+      {/* CTA SECTION */}
+      <section style={{padding:'100px 5%',background:'#030711',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:700,height:400,background:'radial-gradient(ellipse,rgba(29,78,216,0.08),transparent 70%)',pointerEvents:'none'}}/>
+        <div style={{maxWidth:700,margin:'0 auto',textAlign:'center',position:'relative',zIndex:1}} className="cta-section">
+          <div style={{fontSize:11,color:'#3b82f6',letterSpacing:4,fontWeight:700,marginBottom:20}}>CHARTOS APEX 4.0</div>
+          <h2 style={{fontSize:'clamp(28px,5vw,52px)',fontWeight:800,letterSpacing:'-1.5px',marginBottom:20,lineHeight:1.1}}>{L.ctaTitle}</h2>
+          <p style={{fontSize:16,color:'#64748b',lineHeight:1.7,marginBottom:36}}>{L.ctaDesc}</p>
+          <div style={{display:'flex',justifyContent:'center',gap:12,flexWrap:'wrap'}}>
+            <button className="btn-primary" onClick={goApp} style={{fontSize:15,padding:'16px 36px'}}>
+              ⚡ {L.ctaBtn}
+            </button>
+            <a href="https://t.me/deeptradescan" target="_blank" className="btn-ghost" style={{display:'inline-flex',alignItems:'center',gap:8,textDecoration:'none',fontSize:14,padding:'15px 24px'}}>
+              ✈️ Telegram
+            </a>
+          </div>
+          <div style={{marginTop:20,fontSize:12,color:'#1e293b'}}>{L.ctaSub}</div>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer style={{background:'#080e1a',borderTop:'1px solid #0f1e35',padding:'48px 24px 28px'}}>
-        <div style={{maxWidth:1100,margin:'0 auto',display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:40,marginBottom:36}} className="fi">
-          <div>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <img src="/logo.webp" style={{width:30,height:30,borderRadius:8,objectFit:'cover'}} alt="DTS"/>
-              <span style={{fontSize:13,fontWeight:900,letterSpacing:2,color:'#fff'}}>DEEP TRADE SCAN</span>
+      <footer style={{borderTop:'1px solid #0a0f1a',padding:'32px 5%'}}>
+        <div style={{maxWidth:1100,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:16}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:30,height:30,borderRadius:8,background:'linear-gradient(135deg,#0f1f3d,#1a3a6a)',border:'1px solid rgba(59,130,246,0.2)',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <img src="/logo.webp" style={{width:26,height:26,objectFit:'cover',borderRadius:6}} alt="DTS" onError={e=>e.target.style.display='none'}/>
             </div>
-            <p style={{fontSize:12,color:'#475569',lineHeight:1.7,maxWidth:240,marginBottom:16}}>{L.sub}</p>
-            <div style={{display:'flex',gap:8}}>
-              <a href="https://t.me/deeptradescan" style={{width:36,height:36,background:'#0a1220',border:'1px solid #162440',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>✈️</a>
-              <a href="https://twitter.com/deeptradescan" style={{width:36,height:36,background:'#0a1220',border:'1px solid #162440',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:'#e2e8f0'}}>𝕏</a>
-            </div>
+            <div style={{fontSize:12,fontWeight:700,letterSpacing:1}}>DEEP TRADE SCAN</div>
           </div>
-          {[['PLATFORM',[[L.cta,'/app'],[L.f1,'#features'],[L.f3,'#pricing']]],['ANALYSIS',[['BTC','/app'],['ETH','/app'],['SOL','/app'],['200+','/app']]],['SOCIAL',[['Telegram','https://t.me/deeptradescan'],['Twitter','https://twitter.com/deeptradescan']]]].map(([title,links])=>(
-            <div key={title}>
-              <h4 style={{fontSize:10,fontWeight:700,color:'#fff',letterSpacing:2,marginBottom:14}}>{title}</h4>
-              <ul style={{listStyle:'none'}}>
-                {links.map(([text,href])=>(
-                  <li key={text} style={{marginBottom:9}}><a href={href} style={{fontSize:12,color:'#475569'}}>{text}</a></li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <div style={{maxWidth:1100,margin:'0 auto',display:'flex',justifyContent:'space-between',paddingTop:18,borderTop:'1px solid #0f1e35',flexWrap:'wrap',gap:6}}>
-          <span style={{fontSize:11,color:'#334155'}}>© 2026 Deep Trade Scan</span>
-          <span style={{fontSize:10,color:'#1e293b'}}>⚠️ {L.disc}</span>
+          <div style={{fontSize:11,color:'#1e293b',textAlign:'center'}}>⚠️ {L.footer}</div>
+          <div style={{display:'flex',gap:16}}>
+            <a href="https://t.me/deeptradescan" target="_blank" style={{fontSize:12,color:'#334155',textDecoration:'none'}}>Telegram</a>
+            <a href="/app" style={{fontSize:12,color:'#334155',textDecoration:'none'}}>Analiz</a>
+          </div>
         </div>
       </footer>
-    </div>
+    </>
   );
 }
