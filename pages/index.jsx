@@ -161,9 +161,9 @@ export default function Landing() {
         .feat-card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
         .plan-card { background: #08111e; border-radius: 20px; padding: 32px; transition: all 0.3s; position: relative; overflow: hidden; }
         .plan-card:hover { transform: translateY(-6px); }
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
           .nav-links { display: none !important; }
-          .hero-grid { grid-template-columns: 1fr !important; }
+          .hero-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
           .feat-grid { grid-template-columns: 1fr !important; }
           .plan-grid { grid-template-columns: 1fr !important; }
           .stat-grid { grid-template-columns: repeat(2,1fr) !important; }
@@ -211,53 +211,116 @@ export default function Landing() {
         <div style={{position:'absolute',top:'30%',left:'20%',width:500,height:500,background:'radial-gradient(ellipse,rgba(29,78,216,0.08),transparent 70%)',pointerEvents:'none'}}/>
         <div style={{position:'absolute',top:'20%',right:'15%',width:400,height:400,background:'radial-gradient(ellipse,rgba(109,40,217,0.06),transparent 70%)',pointerEvents:'none'}}/>
 
-        <div style={{maxWidth:1100,width:'100%',position:'relative',zIndex:1}}>
+        <div style={{maxWidth:1200,width:'100%',position:'relative',zIndex:1}}>
+
           {/* Badge */}
-          <div style={{display:'flex',justifyContent:'center',marginBottom:32}}>
-            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:100,padding:'7px 16px'}}>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:40}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(59,130,246,0.07)',border:'1px solid rgba(59,130,246,0.18)',borderRadius:100,padding:'7px 18px'}}>
               <div style={{width:6,height:6,borderRadius:'50%',background:'#10b981',animation:'pulse 2s infinite'}}/>
               <span style={{fontSize:11,color:'#60a5fa',fontWeight:700,letterSpacing:2}}>{L.badge}</span>
             </div>
           </div>
 
-          {/* Logo — tek */}
-          <div style={{display:'flex',justifyContent:'center',marginBottom:32}} className="logo-float">
-            <div style={{width:90,height:90,borderRadius:24,background:'linear-gradient(135deg,#0a1628,#0f1f3d)',border:'1px solid rgba(59,130,246,0.25)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 60px rgba(59,130,246,0.15)'}}>
-              <img src="/logo.webp" style={{width:68,height:68,objectFit:'cover',borderRadius:16}} alt="Deep Trade Scan" onError={e=>e.target.style.display='none'}/>
-            </div>
-          </div>
+          {/* 2-col layout: LEFT text + RIGHT mockup */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:60,alignItems:'center',marginBottom:80}} className="hero-grid">
 
-          {/* Headline */}
-          <div className="hero-title" style={{textAlign:'center',marginBottom:20}}>
-            <div style={{fontSize:'clamp(14px,2vw,16px)',color:'#3b82f6',fontWeight:700,letterSpacing:5,marginBottom:12}}>{L.hero1}</div>
-            <h1 style={{fontSize:'clamp(42px,7vw,88px)',fontWeight:800,lineHeight:0.95,letterSpacing:'-2px',background:'linear-gradient(135deg,#f1f5f9 30%,#94a3b8)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>
-              {L.hero2}
-            </h1>
-          </div>
-
-          {/* Sub */}
-          <div className="hero-sub" style={{textAlign:'center',maxWidth:600,margin:'0 auto 40px'}}>
-            <p style={{fontSize:'clamp(14px,1.8vw,17px)',color:'#64748b',lineHeight:1.7,fontWeight:400}}>{L.heroSub}</p>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="hero-cta" style={{display:'flex',justifyContent:'center',gap:12,marginBottom:60,flexWrap:'wrap'}}>
-            <button className="btn-primary" onClick={goApp}>
-              ⚡ {L.ctaBtn}
-            </button>
-            <a href="https://t.me/deeptradescan" target="_blank" className="btn-ghost" style={{display:'inline-flex',alignItems:'center',gap:8,textDecoration:'none'}}>
-              ✈️ Telegram Kanalı
-            </a>
-          </div>
-
-          {/* Trust badges */}
-          <div style={{display:'flex',justifyContent:'center',gap:16,marginBottom:60,flexWrap:'wrap'}}>
-            {L.trustBadges.map((b,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:6}}>
-                <div style={{width:4,height:4,borderRadius:'50%',background:'#10b981'}}/>
-                <span style={{fontSize:11,color:'#334155',fontWeight:500}}>{b}</span>
+            {/* LEFT — text */}
+            <div>
+              <div className="hero-title">
+                <div style={{fontSize:11,color:'#3b82f6',fontWeight:700,letterSpacing:5,marginBottom:14}}>{L.hero1}</div>
+                <h1 style={{fontSize:'clamp(36px,5vw,72px)',fontWeight:800,lineHeight:1,letterSpacing:'-2px',marginBottom:20,background:'linear-gradient(135deg,#f1f5f9 40%,#64748b)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>
+                  {L.hero2}
+                </h1>
+                <div style={{width:60,height:3,background:'linear-gradient(90deg,#3b82f6,#6d28d9)',borderRadius:2,marginBottom:24}}/>
               </div>
-            ))}
+              <div className="hero-sub">
+                <p style={{fontSize:'clamp(14px,1.5vw,16px)',color:'#64748b',lineHeight:1.8,marginBottom:36}}>{L.heroSub}</p>
+              </div>
+              <div className="hero-cta" style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:40}}>
+                <button className="btn-primary" onClick={goApp}>⚡ {L.ctaBtn}</button>
+                <a href="https://t.me/deeptradescan" target="_blank" className="btn-ghost" style={{display:'inline-flex',alignItems:'center',gap:8,textDecoration:'none'}}>✈️ Telegram</a>
+              </div>
+              <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                {L.trustBadges.map((b,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:6}}>
+                    <div style={{width:4,height:4,borderRadius:'50%',background:'#10b981'}}/>
+                    <span style={{fontSize:11,color:'#334155',fontWeight:500}}>{b}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* RIGHT — animasyonlu analiz mockup */}
+            <div style={{position:'relative'}}>
+              {/* Glow arkası */}
+              <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:400,height:400,background:'radial-gradient(ellipse,rgba(59,130,246,0.12),transparent 70%)',pointerEvents:'none'}}/>
+
+              {/* Ana kart */}
+              <div style={{background:'#08111e',border:'1px solid #1e293b',borderRadius:20,padding:24,boxShadow:'0 30px 80px rgba(0,0,0,0.6)',position:'relative',overflow:'hidden'}}>
+                {/* Scan line animasyonu */}
+                <div style={{position:'absolute',left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(59,130,246,0.4),transparent)',animation:'scanH 3s linear infinite',pointerEvents:'none'}}/>
+
+                {/* Header */}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,paddingBottom:16,borderBottom:'1px solid #0f1923'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:'#10b981',boxShadow:'0 0 8px #10b981',animation:'pulse 2s infinite'}}/>
+                    <span style={{fontSize:11,fontWeight:700,color:'#60a5fa',letterSpacing:2,fontFamily:"'JetBrains Mono',monospace"}}>CHARTOS APEX 4.0</span>
+                  </div>
+                  <div style={{display:'flex',gap:5}}>
+                    {['#ef4444','#f59e0b','#10b981'].map((c,i)=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:c}}/>)}
+                  </div>
+                </div>
+
+                {/* Coin + bias */}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+                  <div>
+                    <div style={{fontSize:24,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:'#f1f5f9'}}>BTC<span style={{fontSize:13,color:'#334155',fontWeight:400}}>/USDT</span></div>
+                    <div style={{fontSize:11,color:'#10b981',fontWeight:600,marginTop:2}}>▲ LONG BIAS — 87.4% WIN RATE</div>
+                  </div>
+                  <div style={{background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'8px 14px',textAlign:'center'}}>
+                    <div style={{fontSize:18,fontWeight:800,color:'#10b981',fontFamily:"'JetBrains Mono',monospace"}}>1:3.8</div>
+                    <div style={{fontSize:9,color:'#475569',letterSpacing:1}}>R:R</div>
+                  </div>
+                </div>
+
+                {/* Levels */}
+                {[
+                  {label:'GIRIŞ',value:'$94,820',color:'#10b981',bg:'rgba(16,185,129,0.06)'},
+                  {label:'STOP',value:'$92,100',color:'#ef4444',bg:'rgba(239,68,68,0.06)'},
+                  {label:'HEDEF 1',value:'$98,500',color:'#06b6d4',bg:'rgba(6,182,212,0.06)'},
+                  {label:'HEDEF 2',value:'$102,300',color:'#3b82f6',bg:'rgba(59,130,246,0.06)'},
+                  {label:'HEDEF 3',value:'$107,000',color:'#8b5cf6',bg:'rgba(139,92,246,0.06)'},
+                ].map((row,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:row.bg,borderRadius:8,marginBottom:6}}>
+                    <span style={{fontSize:10,color:'#475569',fontWeight:600,letterSpacing:1}}>{row.label}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:row.color,fontFamily:"'JetBrains Mono',monospace"}}>{row.value}</span>
+                  </div>
+                ))}
+
+                {/* Bottom metrics */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:16,paddingTop:16,borderTop:'1px solid #0f1923'}}>
+                  {[
+                    {l:'EDGE',v:'94.2',c:'#a855f7'},
+                    {l:'CONFLUENCE',v:'%91',c:'#f59e0b'},
+                    {l:'LEVERAGE',v:'5x',c:'#06b6d4'},
+                  ].map((m,i)=>(
+                    <div key={i} style={{background:'#04080f',borderRadius:8,padding:'10px',textAlign:'center'}}>
+                      <div style={{fontSize:16,fontWeight:800,color:m.c,fontFamily:"'JetBrains Mono',monospace"}}>{m.v}</div>
+                      <div style={{fontSize:9,color:'#334155',letterSpacing:1,marginTop:3}}>{m.l}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Watermark */}
+                <div style={{textAlign:'center',marginTop:14,fontSize:9,color:'#1e293b',letterSpacing:2}}>DEEP TRADE SCAN — CHARTOS APEX 4.0</div>
+              </div>
+
+              {/* Floating badge sağ alt */}
+              <div style={{position:'absolute',bottom:-16,right:-16,background:'#080f1a',border:'1px solid rgba(16,185,129,0.3)',borderRadius:12,padding:'10px 14px',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
+                <div style={{fontSize:10,color:'#10b981',fontWeight:700,letterSpacing:1}}>✓ MARKET MAKER TESPİT</div>
+                <div style={{fontSize:9,color:'#334155',marginTop:2}}>ICT Phase B Sweep</div>
+              </div>
+            </div>
           </div>
 
           {/* Stats */}
