@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
+import SupportWidget from '../components/SupportWidget';
 
 const PLANS = {
   TR: [
@@ -337,22 +338,181 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="how" style={{padding:'100px 5%',borderTop:'1px solid #0a0f1a'}}>
-        <div style={{maxWidth:1100,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:64}}>
-            <div style={{fontSize:11,color:'#3b82f6',letterSpacing:4,fontWeight:700,marginBottom:12}}>{L.howTitle}</div>
-            <h2 style={{fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-1px'}}>3 Adımda Kurumsal Analiz</h2>
+      {/* HOW IT WORKS — kurumsal MM analiz görünümü */}
+      <section id="how" style={{padding:'110px 5%',borderTop:'1px solid #080e18',background:'#030711',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(59,130,246,0.3),transparent)'}}/>
+        <div style={{position:'absolute',bottom:'10%',right:'5%',width:400,height:400,background:'radial-gradient(ellipse,rgba(109,40,217,0.05),transparent 70%)',pointerEvents:'none'}}/>
+
+        <div style={{maxWidth:1200,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:70}}>
+            <div style={{fontSize:10,color:'#3b82f6',letterSpacing:5,fontWeight:700,marginBottom:14}}>{L.howTitle}</div>
+            <h2 style={{fontSize:'clamp(28px,4vw,48px)',fontWeight:800,letterSpacing:'-1.5px',marginBottom:14}}>
+              Market Maker <span style={{background:'linear-gradient(135deg,#3b82f6,#a855f7)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>Algoritması</span> Nasıl Çalışır?
+            </h2>
+            <p style={{fontSize:14,color:'#475569',maxWidth:560,margin:'0 auto',lineHeight:1.7}}>CHARTOS APEX 4.0, kurumsal oyuncuların bıraktığı ayak izlerini 10 katmanlı analiz motoru ile gerçek zamanlı tespit eder</p>
           </div>
-          <div className="step-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:2,position:'relative'}}>
-            {L.howSteps.map((step,i)=>(
-              <div key={i} style={{background:'#080f1a',border:'1px solid #0f1923',padding:'36px 28px',position:'relative',borderRadius:i===0?'16px 0 0 16px':i===2?'0 16px 16px 0':'0'}}>
-                <div style={{fontSize:'clamp(48px,5vw,72px)',fontWeight:800,color:'#0a1628',fontFamily:"'JetBrains Mono',monospace",lineHeight:1,marginBottom:20,letterSpacing:'-2px'}}>{step.n}</div>
-                <div style={{width:32,height:2,background:'linear-gradient(90deg,#3b82f6,#6d28d9)',borderRadius:1,marginBottom:16}}/>
-                <div style={{fontSize:16,fontWeight:700,color:'#f1f5f9',marginBottom:10}}>{step.t}</div>
-                <div style={{fontSize:13,color:'#64748b',lineHeight:1.7}}>{step.d}</div>
+
+          {/* STEP 1 — büyük görsel blok */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:40,alignItems:'center',marginBottom:20}}>
+            <div style={{background:'#08111e',border:'1px solid #0f1923',borderRadius:20,padding:32,position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(90deg,#3b82f6,#6d28d9)'}}/>
+              <div style={{fontSize:10,color:'#334155',letterSpacing:3,fontWeight:700,marginBottom:20}}>ADIM 01 — GİRİŞ NOKTASI</div>
+
+              {/* Coin seçim mockup */}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+                {['BTC','ETH','SOL','BNB','XRP','ARB'].map((c,i)=>(
+                  <div key={i} style={{padding:'7px 14px',background:c==='BTC'?'rgba(59,130,246,0.15)':'#04080f',border:`1px solid ${c==='BTC'?'rgba(59,130,246,0.4)':'#0f1923'}`,borderRadius:8,fontSize:11,fontWeight:700,color:c==='BTC'?'#60a5fa':'#334155',fontFamily:"'JetBrains Mono',monospace"}}>
+                    {c}
+                  </div>
+                ))}
               </div>
-            ))}
+
+              {/* Price ticker */}
+              <div style={{background:'#04080f',borderRadius:12,padding:'16px 20px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:11,color:'#334155',letterSpacing:2,marginBottom:4}}>BTC/USDT</div>
+                  <div style={{fontSize:28,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:'#f1f5f9'}}>$94,820</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:12,color:'#10b981',fontWeight:700}}>▲ +2.34%</div>
+                  <div style={{fontSize:10,color:'#334155',marginTop:4}}>24H VOLUME: $42.1B</div>
+                </div>
+              </div>
+
+              {/* HTF bias bar */}
+              <div style={{display:'flex',gap:8}}>
+                {[['1H','LONG','#10b981'],['4H','LONG','#10b981'],['1D','NEUTRAL','#f59e0b'],['1W','LONG','#10b981']].map(([tf,bias,c])=>(
+                  <div key={tf} style={{flex:1,background:'#04080f',border:`1px solid ${c}20`,borderRadius:8,padding:'8px',textAlign:'center'}}>
+                    <div style={{fontSize:9,color:'#334155',marginBottom:3}}>{tf}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:c}}>{bias}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{padding:'0 16px'}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:8,padding:'6px 14px',marginBottom:20}}>
+                <span style={{fontSize:10,color:'#3b82f6',fontWeight:700,letterSpacing:2}}>STEP 01</span>
+              </div>
+              <h3 style={{fontSize:'clamp(22px,3vw,32px)',fontWeight:800,letterSpacing:'-0.5px',marginBottom:14,lineHeight:1.2}}>Varlık Seç,<br/>Piyasayı İzle</h3>
+              <p style={{fontSize:14,color:'#64748b',lineHeight:1.8,marginBottom:24}}>200+ kripto varlık arasından seçim yapın. Sistem anlık fiyat, hacim ve çoklu zaman dilimi HTF bias verilerini otomatik olarak çeker.</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {['200+ desteklenen coin','Gerçek zamanlı fiyat akışı','HTF Bias: 1H / 4H / 1D / 1W','Otomatik veri senkronizasyonu'].map((f,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:5,height:5,borderRadius:'50%',background:'#3b82f6',flexShrink:0}}/>
+                    <span style={{fontSize:13,color:'#475569'}}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 2 — MM algoritması */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:40,alignItems:'center',marginBottom:20}}>
+            <div style={{padding:'0 16px',order:1}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(168,85,247,0.08)',border:'1px solid rgba(168,85,247,0.2)',borderRadius:8,padding:'6px 14px',marginBottom:20}}>
+                <span style={{fontSize:10,color:'#a855f7',fontWeight:700,letterSpacing:2}}>STEP 02</span>
+              </div>
+              <h3 style={{fontSize:'clamp(22px,3vw,32px)',fontWeight:800,letterSpacing:'-0.5px',marginBottom:14,lineHeight:1.2}}>Market Maker<br/>Algoritması Devrede</h3>
+              <p style={{fontSize:14,color:'#64748b',lineHeight:1.8,marginBottom:24}}>10 katmanlı APEX engine, kurumsal oyuncuların bıraktığı ayak izlerini tespit eder. Order Block, FVG, Liquidity Sweep ve Phase analizi eş zamanlı çalışır.</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {['Phase A-B-C-D Market Maker döngüsü','Unmitigated Order Block tespiti','Fair Value Gap dolum analizi','Liquidity Pool & Stop Hunt haritası','On-chain whale wallet tracking'].map((f,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:5,height:5,borderRadius:'50%',background:'#a855f7',flexShrink:0}}/>
+                    <span style={{fontSize:13,color:'#475569'}}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{background:'#08111e',border:'1px solid #0f1923',borderRadius:20,padding:28,position:'relative',overflow:'hidden',order:2}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(90deg,#a855f7,#6d28d9)'}}/>
+              <div style={{fontSize:10,color:'#334155',letterSpacing:3,fontWeight:700,marginBottom:18}}>ADIM 02 — MM ANALİZİ</div>
+
+              {/* Phase göstergesi */}
+              <div style={{display:'flex',gap:6,marginBottom:18}}>
+                {[['A','ACCUMULATION','#ef4444'],['B','MANIPULATION','#f59e0b'],['C','DISTRIBUTION','#a855f7'],['D','MARKUP','#10b981']].map(([p,label,c],i)=>(
+                  <div key={i} style={{flex:1,background:p==='B'?`${c}18`:'#04080f',border:`1px solid ${p==='B'?c+'40':'#0f1923'}`,borderRadius:8,padding:'8px 4px',textAlign:'center'}}>
+                    <div style={{fontSize:14,fontWeight:800,color:p==='B'?c:'#334155',fontFamily:"'JetBrains Mono',monospace"}}>{p}</div>
+                    <div style={{fontSize:7,color:p==='B'?c:'#1e293b',marginTop:2,letterSpacing:0.5}}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detay listesi */}
+              {[
+                {label:'Order Block',value:'$93,200 — $94,100',color:'#10b981',status:'UNMITIGATED'},
+                {label:'Fair Value Gap',value:'$95,400 — $96,800',color:'#f59e0b',status:'OPEN'},
+                {label:'Liquidity Pool',value:'$91,500 (BSL)',color:'#ef4444',status:'AKTIF'},
+                {label:'HTF Structure',value:'BOS → Bullish',color:'#3b82f6',status:'CONFIRMED'},
+                {label:'Whale Flow',value:'$2.4B Net Buy',color:'#a855f7',status:'7 GÜN'},
+              ].map((row,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'#04080f',borderRadius:8,marginBottom:5}}>
+                  <div>
+                    <div style={{fontSize:10,color:'#475569',fontWeight:600}}>{row.label}</div>
+                    <div style={{fontSize:11,color:row.color,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{row.value}</div>
+                  </div>
+                  <div style={{fontSize:8,color:row.color,background:`${row.color}15`,border:`1px solid ${row.color}30`,borderRadius:4,padding:'2px 7px',fontWeight:700,letterSpacing:0.5}}>{row.status}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* STEP 3 — sinyal */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:40,alignItems:'center'}}>
+            <div style={{background:'#08111e',border:'1px solid rgba(16,185,129,0.2)',borderRadius:20,padding:28,position:'relative',overflow:'hidden',boxShadow:'0 0 40px rgba(16,185,129,0.05)'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(90deg,#10b981,#3b82f6)'}}/>
+              <div style={{fontSize:10,color:'#334155',letterSpacing:3,fontWeight:700,marginBottom:18}}>ADIM 03 — SINYAL ÇIKTISI</div>
+
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+                <div>
+                  <div style={{fontSize:20,fontWeight:800,fontFamily:"'JetBrains Mono',monospace"}}>BTC/USDT</div>
+                  <div style={{fontSize:11,color:'#10b981',fontWeight:700,marginTop:2}}>⬆ LONG — YÜKSEK KONFİDANS</div>
+                </div>
+                <div style={{background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'10px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#10b981',fontFamily:"'JetBrains Mono',monospace"}}>1:3.8</div>
+                  <div style={{fontSize:8,color:'#475569',letterSpacing:1}}>R:R ORANI</div>
+                </div>
+              </div>
+
+              {[
+                {l:'GİRİŞ BÖLGESİ',v:'$93.800 — $94.200',c:'#10b981'},
+                {l:'STOP LOSS',v:'$91.500',c:'#ef4444'},
+                {l:'HEDEF 1',v:'$98.500 (+4.6%)',c:'#06b6d4'},
+                {l:'HEDEF 2',v:'$102.300 (+8.5%)',c:'#3b82f6'},
+                {l:'HEDEF 3',v:'$107.000 (+13.5%)',c:'#a855f7'},
+              ].map((r,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'9px 12px',background:`rgba(${r.c==='#10b981'?'16,185,129':r.c==='#ef4444'?'239,68,68':'59,130,246'},0.04)`,borderRadius:8,marginBottom:5,borderLeft:`2px solid ${r.c}40`}}>
+                  <span style={{fontSize:10,color:'#475569',fontWeight:600,letterSpacing:0.5}}>{r.l}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:r.c,fontFamily:"'JetBrains Mono',monospace"}}>{r.v}</span>
+                </div>
+              ))}
+
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:14}}>
+                {[['EDGE','94.2','#a855f7'],['WIN RATE','%87.4','#f59e0b'],['LEVERAGE','5x MAX','#06b6d4']].map(([l,v,c])=>(
+                  <div key={l} style={{background:'#04080f',borderRadius:8,padding:'9px',textAlign:'center'}}>
+                    <div style={{fontSize:14,fontWeight:800,color:c,fontFamily:"'JetBrains Mono',monospace"}}>{v}</div>
+                    <div style={{fontSize:8,color:'#334155',marginTop:2,letterSpacing:1}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{padding:'0 16px'}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:8,padding:'6px 14px',marginBottom:20}}>
+                <span style={{fontSize:10,color:'#10b981',fontWeight:700,letterSpacing:2}}>STEP 03</span>
+              </div>
+              <h3 style={{fontSize:'clamp(22px,3vw,32px)',fontWeight:800,letterSpacing:'-0.5px',marginBottom:14,lineHeight:1.2}}>Kurumsal Sinyal,<br/>Anında Telegram'da</h3>
+              <p style={{fontSize:14,color:'#64748b',lineHeight:1.8,marginBottom:24}}>Giriş bölgesi, stop loss ve 3 kademeli hedef ile tam R:R hesaplı profesyonel sinyal otomatik olarak Telegram kanalına iletilir.</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {['Giriş, Stop ve 3 Hedef seviyesi','Risk/Reward oranı hesaplı','Max kaldıraç önerisi','Otomatik Telegram bildirimi','Backtested Win Rate & Edge Skoru'].map((f,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:5,height:5,borderRadius:'50%',background:'#10b981',flexShrink:0}}/>
+                    <span style={{fontSize:13,color:'#475569'}}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -453,6 +613,9 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* CANLI DESTEK — her sayfada */}
+      <SupportWidget session={null} />
     </>
   );
 }
