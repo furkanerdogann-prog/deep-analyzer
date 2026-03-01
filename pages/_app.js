@@ -1,3 +1,5 @@
+import SupportWidget from '../components/SupportWidget';
+
 // pages/_app.js — Google Analytics
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
